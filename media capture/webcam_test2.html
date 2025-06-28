@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webcam Test</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 50px;
+      }
+      video {
+        border: 2px solid #ccc;
+        background-color: #eee;
+        width: 640px;
+        height: 480px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin-top: 20px;
+        cursor: pointer;
+      }
+      #messages {
+        margin-top: 20px;
+        color: green;
+      }
+      #errors {
+        margin-top: 20px;
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Webcam Test</h1>
+
+    <video id="liveVideo" autoplay playsinline></video>
+
+    <button id="startCameraButton">Start Camera</button>
+
+    <div id="messages"></div>
+    <div id="errors"></div>
+
+    <script>
+      // 1. Define the asynchronous function to open media devices
+      const openMediaDevices = async (constraints) => {
+        try {
+          // navigator.mediaDevices.getUserMedia returns a Promise
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream; // Return the MediaStream object
+        } catch (error) {
+          // Re-throw the error so the calling code can catch it
+          throw error;
+        }
+      };
+
+      // Get references to our HTML elements
+      const liveVideoElement = document.getElementById("liveVideo");
+      const startCameraButton = document.getElementById("startCameraButton");
+      const messagesDiv = document.getElementById("messages");
+      const errorsDiv = document.getElementById("errors");
+
+      // Function to display messages
+      function displayMessage(msg) {
+        messagesDiv.textContent = msg;
+        errorsDiv.textContent = ""; // Clear errors
+      }
+
+      // Function to display errors
+      function displayError(err) {
+        errorsDiv.textContent = `Error: ${err.name} - ${
+          err.message || "An unknown error occurred."
+        }`;
+        messagesDiv.textContent = ""; // Clear messages
+        console.error("Detailed error:", err);
+      }
+
+      // 2. Add an event listener to the button to trigger the camera access
+      startCameraButton.addEventListener("click", async () => {
+        displayMessage("Requesting camera access...");
+        try {
+          // 3. Call your openMediaDevices function
+          const stream = await openMediaDevices({ video: true, audio: true });
+
+          // 4. If successful, attach the stream to the <video> element
+          liveVideoElement.srcObject = stream;
+          displayMessage(
+            "Camera and microphone access granted! You should see yourself."
+          );
+
+          // Optionally, disable the button once camera is on
+          startCameraButton.disabled = true;
+        } catch (error) {
+          // 5. Handle any errors during media access
+          if (error.name === "NotAllowedError") {
+            displayError(
+              "Camera/Microphone access denied. Please allow permissions in your browser settings."
+            );
+          } else if (error.name === "NotFoundError") {
+            displayError("No camera or microphone found.");
+          } else if (error.name === "NotReadableError") {
+            displayError(
+              "Camera/microphone is in use by another application or device error."
+            );
+          } else {
+            displayError(`Error accessing media devices: ${error.message}`);
+          }
+        }
+      });
+
+      // Important: This code must be served over HTTPS or from localhost.
+      // If you try to open this HTML file directly via file://,
+      // or over plain HTTP, getUserMedia will likely fail.
+    </script>
+  </body>
+</html>

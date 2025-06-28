@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webcam Recorder with Chunked Upload</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 50px;
+        background-color: #f0f4f8;
+        color: #333;
+      }
+      .container {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      h1 {
+        color: #2c3e50;
+        margin-bottom: 25px;
+      }
+      video {
+        border: 4px solid #a7d9f7; /* Light blue border */
+        border-radius: 8px; /* Rounded corners */
+        background-color: #e2f0fb; /* Lighter blue background */
+        width: 100%; /* Make it responsive */
+        max-width: 640px;
+        height: auto; /* Maintain aspect ratio */
+        min-height: 360px; /* Minimum height for visibility */
+        display: block; /* Remove extra space below video */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+      }
+      .controls {
+        margin-top: 30px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      button {
+        padding: 12px 25px;
+        font-size: 1.1em;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease,
+          box-shadow 0.2s ease;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      }
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      button:disabled {
+        background-color: #cccccc !important;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      #startCameraButton {
+        background-color: #4caf50;
+        color: white;
+      } /* Green */
+      #startCameraButton:hover {
+        background-color: #45a049;
+      }
+
+      #startRecordingButton {
+        background-color: #008cba;
+        color: white;
+      } /* Blue */
+      #startRecordingButton:hover {
+        background-color: #007bb5;
+      }
+
+      #stopRecordingButton {
+        background-color: #f44336;
+        color: white;
+      } /* Red */
+      #stopRecordingButton:hover {
+        background-color: #da190b;
+      }
+
+      .messages-container {
+        margin-top: 25px;
+        width: 100%;
+        max-width: 640px;
+        text-align: center;
+      }
+      #messages {
+        padding: 10px;
+        background-color: #e6ffe6;
+        border: 1px solid #c2f0c2;
+        border-radius: 6px;
+        color: #3c763d;
+        margin-bottom: 10px;
+      }
+      #errors {
+        padding: 10px;
+        background-color: #ffe6e6;
+        border: 1px solid #f0c2c2;
+        border-radius: 6px;
+        color: #a94442;
+        margin-bottom: 10px;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .container {
+          padding: 20px;
+          margin: 20px;
+          width: calc(100% - 40px);
+        }
+        video {
+          min-height: 240px;
+        }
+        .controls {
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+        }
+        button {
+          width: 80%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Webcam Recorder with Chunked Upload</h1>
+
+      <video id="liveVideo" autoplay playsinline muted></video>
+
+      <div class="controls">
+        <button id="startCameraButton">Start Camera</button>
+        <button id="startRecordingButton" disabled>Start Recording</button>
+        <button id="stopRecordingButton" disabled>Stop Recording</button>
+      </div>
+
+      <div class="messages-container">
+        <div id="messages">Click "Start Camera" to begin.</div>
+        <div id="errors"></div>
+      </div>
+    </div>
+
+    <script>
+      const liveVideoElement = document.getElementById("liveVideo");
+      const startCameraButton = document.getElementById("startCameraButton");
+      const startRecordingButton = document.getElementById(
+        "startRecordingButton"
+      );
+      const stopRecordingButton = document.getElementById(
+        "stopRecordingButton"
+      );
+      const messagesDiv = document.getElementById("messages");
+      const errorsDiv = document.getElementById("errors");
+
+      let mediaStream; // Stores the MediaStream (live camera/mic feed)
+      let mediaRecorder; // Stores the MediaRecorder instance
+      let chunkSequence = 0; // Keeps track of the chunk's order for the current recording
+      let currentRoomId = null; // Master session ID for multi-client recording
+      let currentRecordingId = null; // Unique ID for this specific participant's recording track
+      let currentUserId = "demo-user-123"; // Placeholder: In a real app, this would come from auth
+
+      // --- Helper Functions for UI feedback ---
+      function displayMessage(msg) {
+        messagesDiv.textContent = msg;
+        errorsDiv.textContent = ""; // Clear errors when a message is displayed
+      }
+
+      function displayError(err) {
+        // Ensure err is an object with name and message properties if possible
+        const errorName = err.name || "UnknownError";
+        const errorMessage = err.message || "An unknown error occurred.";
+        errorsDiv.textContent = `Error: ${errorName} - ${errorMessage}`;
+        messagesDiv.textContent = ""; // Clear messages when an error is displayed
+        console.error("Detailed error:", err);
+      }
+
+      // Updates button states based on current application state
+      function updateButtonStates(cameraOn, recordingActive) {
+        startCameraButton.disabled = cameraOn; // Disable 'Start Camera' if camera is on
+        startRecordingButton.disabled = !cameraOn || recordingActive; // Enable 'Start Recording' only if camera is on and not already recording
+        stopRecordingButton.disabled = !recordingActive; // Enable 'Stop Recording' only if recording is active
+      }
+
+      // Generates a UUID (Universally Unique Identifier)
+      function generateUUID() {
+        return crypto.randomUUID();
+      }
+
+      // --- Core Media Device Access ---
+      const openMediaDevices = async (constraints) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        } catch (error) {
+          throw error; // Re-throw to allow higher-level catch to handle
+        }
+      };
+
+      // --- FETCH REQUEST TO UPLOAD CHUNK ---
+      // This is the core function that sends each video chunk to the backend
+      async function uploadVideoChunk(
+        chunkBlob,
+        chunkIndex,
+        roomId,
+        recordingId,
+        userId
+      ) {
+        const formData = new FormData();
+
+        // CORE IDENTIFICATION METADATA
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("chunkIndex", chunkIndex);
+
+        // CONTENT (the actual video chunk)
+        // The third argument for append is the filename, helpful for backend processing
+        formData.append(
+          "videoChunk",
+          chunkBlob,
+          `chunk-${recordingId}-${chunkIndex}.webm`
+        );
+
+        // CONTEXTUAL METADATA
+        formData.append("userId", userId);
+        formData.append("timestamp", Date.now()); // Current time in milliseconds since epoch
+
+        try {
+          const response = await fetch("http://localhost:3000/upload-chunk", {
+            // !!! IMPORTANT: Update this URL to your backend endpoint !!!
+            method: "POST",
+            body: formData,
+            // If your backend requires authentication, add headers here:
+            // headers: {
+            //     'Authorization': `Bearer ${yourAuthToken}`
+            // }
+          });
+
+          if (!response.ok) {
+            // If the server responded with an error status (e.g., 4xx, 5xx)
+            const errorDetails = await response.text(); // Try to get error message from server
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+
+          const result = await response.json(); // Assuming your backend sends a JSON response
+          console.log(
+            `Chunk ${chunkIndex} uploaded successfully for recording ${recordingId}. Server response:`,
+            result
+          );
+          displayMessage(
+            `Chunk ${chunkIndex} uploaded (${result.message || "success"}).`
+          );
+        } catch (error) {
+          console.error(
+            `Error uploading chunk ${chunkIndex} for recording ${recordingId}:`,
+            error
+          );
+          displayError(
+            `Failed to upload chunk ${chunkIndex}. Check console for details. `
+          );
+          // --- IMPORTANT: Implement Retry Logic Here ---
+          // For a production app, you would add failed chunks to a queue
+          // and implement retry mechanisms (e.g., exponential backoff)
+        }
+      }
+
+      // --- Signal End of Recording to Backend ---
+      async function sendEndOfRecordingSignal(roomId, recordingId, userId) {
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("userId", userId);
+        formData.append("isLastChunk", "true"); // Flag to tell backend this is the end
+
+        try {
+          const response = await fetch("http://localhost:3000/upload-chunk", {
+            // Same endpoint
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          console.log("End of recording signal sent successfully.");
+          displayMessage("Recording ended. Finalizing video...");
+        } catch (error) {
+          console.error("Error sending end of recording signal:", error);
+          displayError(
+            "Failed to send end of recording signal. Video may not finalize correctly."
+          );
+        }
+      }
+
+      // --- Event Listeners for UI Buttons ---
+
+      startCameraButton.addEventListener("click", async () => {
+        displayMessage("Requesting camera access...");
+        try {
+          mediaStream = await openMediaDevices({ video: true, audio: true });
+          liveVideoElement.srcObject = mediaStream;
+          displayMessage(
+            'Camera and microphone access granted! Click "Start Recording".'
+          );
+          updateButtonStates(true, false);
+        } catch (error) {
+          if (error.name === "NotAllowedError") {
+            displayError(
+              "Camera/Microphone access denied. Please allow permissions in your browser settings."
+            );
+          } else if (error.name === "NotFoundError") {
+            displayError(
+              "No camera or microphone found. Please ensure one is connected."
+            );
+          } else if (error.name === "NotReadableError") {
+            displayError(
+              "Camera/microphone is in use by another application or device error. Please close other apps."
+            );
+          } else {
+            displayError(`Error accessing media devices: ${error.message}`);
+          }
+          updateButtonStates(false, false);
+        }
+      });
+
+      startRecordingButton.addEventListener("click", () => {
+        if (!mediaStream) {
+          displayError("Camera not started. Please start camera first.");
+          return;
+        }
+
+        // --- Generate unique IDs for this recording session ---
+        // For a multi-client scenario, currentRoomId would come from joining a room, not always generated here.
+        // For now, if currentRoomId is null, generate a new one for a standalone recording.
+        if (!currentRoomId) {
+          currentRoomId = generateUUID();
+          console.log("New Room ID (Standalone Recording):", currentRoomId);
+        }
+        currentRecordingId = generateUUID(); // Each participant's unique recording track ID
+        chunkSequence = 0; // Reset chunk sequence for a new recording
+
+        const options = { mimeType: "video/webm;codecs=vp8,opus" }; // WebM for wide browser support
+
+        mediaRecorder = new MediaRecorder(mediaStream, options);
+
+        // --- IMPORTANT: ondataavailable event for sending chunks ---
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            // Call the function to upload the chunk
+            await uploadVideoChunk(
+              event.data,
+              chunkSequence,
+              currentRoomId,
+              currentRecordingId,
+              currentUserId
+            );
+            chunkSequence++; // Increment AFTER successful (or attempted) upload
+          }
+        };
+
+        // --- onstop event handles end of recording process ---
+        mediaRecorder.onstop = () => {
+          console.log("MediaRecorder stopped.");
+          // Send final signal to backend that this specific recording track is done
+          sendEndOfRecordingSignal(
+            currentRoomId,
+            currentRecordingId,
+            currentUserId
+          );
+
+          // Reset IDs for next recording session (if not part of a continuous room)
+          // In a multi-client room, currentRoomId would persist until the host closes it.
+          // currentRoomId = null;
+          // currentRecordingId = null;
+
+          updateButtonStates(true, false); // Camera on, recording off
+        };
+
+        // Start recording, emitting data every 3 seconds (3000 ms)
+        mediaRecorder.start(3000);
+        displayMessage(
+          `Recording started! Chunks for Room ${currentRoomId}, Track ${currentRecordingId} are being sent every 3 seconds.`
+        );
+        updateButtonStates(true, true); // Camera on, recording active
+      });
+
+      stopRecordingButton.addEventListener("click", () => {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop(); // This triggers the onstop event
+        }
+      });
+
+      // Initial button states when the page loads
+      updateButtonStates(false, false);
+    </script>
+  </body>
+</html>

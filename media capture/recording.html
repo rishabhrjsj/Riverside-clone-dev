@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webcam Recorder</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 50px;
+      }
+      video {
+        border: 2px solid #ccc;
+        background-color: #eee;
+        width: 640px;
+        height: 480px;
+      }
+      .controls {
+        margin-top: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin: 5px;
+        cursor: pointer;
+      }
+      #messages {
+        margin-top: 20px;
+        color: green;
+      }
+      #errors {
+        margin-top: 20px;
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Webcam Recorder</h1>
+
+    <video id="liveVideo" autoplay playsinline muted></video>
+    <div class="controls">
+      <button id="startCameraButton">Start Camera</button>
+      <button id="startRecordingButton" disabled>Start Recording</button>
+      <button id="stopRecordingButton" disabled>Stop Recording</button>
+    </div>
+
+    <div id="messages"></div>
+    <div id="errors"></div>
+
+    <script>
+      const liveVideoElement = document.getElementById("liveVideo");
+      const startCameraButton = document.getElementById("startCameraButton");
+      const startRecordingButton = document.getElementById(
+        "startRecordingButton"
+      );
+      const stopRecordingButton = document.getElementById(
+        "stopRecordingButton"
+      );
+      const messagesDiv = document.getElementById("messages");
+      const errorsDiv = document.getElementById("errors");
+
+      let mediaStream; // To store the MediaStream globally
+      let mediaRecorder; // To store the MediaRecorder globally
+      let recordedChunks = []; // To temporarily store chunks (for testing the process locally)
+      let chunkCounter = 0; // To keep track of chunk index for naming
+
+      // --- Helper Functions for UI feedback ---
+      function displayMessage(msg) {
+        messagesDiv.textContent = msg;
+        errorsDiv.textContent = "";
+      }
+
+      function displayError(err) {
+        errorsDiv.textContent = `Error: ${err.name} - ${
+          err.message || "An unknown error occurred."
+        }`;
+        messagesDiv.textContent = "";
+        console.error("Detailed error:", err);
+      }
+
+      function updateButtonStates(cameraOn, recordingActive) {
+        startCameraButton.disabled = cameraOn;
+        startRecordingButton.disabled = !cameraOn || recordingActive;
+        stopRecordingButton.disabled = !recordingActive;
+      }
+
+      // --- Core Media Device Access ---
+      const openMediaDevices = async (constraints) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        } catch (error) {
+          throw error;
+        }
+      };
+
+      // --- Start Camera Button Logic ---
+      startCameraButton.addEventListener("click", async () => {
+        displayMessage("Requesting camera access...");
+        try {
+          mediaStream = await openMediaDevices({ video: true, audio: true });
+          liveVideoElement.srcObject = mediaStream;
+          displayMessage(
+            "Camera and microphone access granted! Ready to record."
+          );
+          updateButtonStates(true, false); // Camera is on, recording is off
+        } catch (error) {
+          if (error.name === "NotAllowedError") {
+            displayError(
+              "Camera/Microphone access denied. Please allow permissions in your browser settings."
+            );
+          } else if (error.name === "NotFoundError") {
+            displayError("No camera or microphone found.");
+          } else if (error.name === "NotReadableError") {
+            displayError(
+              "Camera/microphone is in use by another application or device error."
+            );
+          } else {
+            displayError(`Error accessing media devices: ${error.message}`);
+          }
+          updateButtonStates(false, false); // Camera is off, recording is off
+        }
+      });
+
+      // --- Start Recording Button Logic ---
+      startRecordingButton.addEventListener("click", () => {
+        if (!mediaStream) {
+          displayError("Camera not started. Please start camera first.");
+          return;
+        }
+
+        // Choose a MIME type. WebM with VP8/Opus is generally well-supported.
+        // Check browser compatibility for other types like video/mp4
+        const options = { mimeType: "video/webm;codecs=vp8,opus" };
+
+        // Initialize MediaRecorder
+        mediaRecorder = new MediaRecorder(mediaStream, options);
+
+        // --- IMPORTANT: Handle dataavailable event for chunked recording ---
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            const chunk = event.data;
+            recordedChunks.push(event.data); // Temporarily store for local testing
+            // ### HERE IS WHERE YOU WOULD CALL YOUR UPLOAD FUNCTION ###
+            // For now, we'll just log and simulate sending
+
+            displayMessage(
+              `Chunk ${chunkCounter} (${event.data.size} bytes) available. Simulating upload...`
+            );
+            // In a real app: uploadVideoChunk(event.data, chunkCounter, sessionId);
+            chunkCounter++;
+            //send chunk ot server
+            fetch("/upload", {
+              method: "POST",
+              body: chunk, // directly send blob
+            });
+          }
+        };
+
+        // --- Handle stop event ---
+        mediaRecorder.onstop = () => {
+          displayMessage("Recording stopped. Processing final video...");
+          // You could assemble all recordedChunks here for a local preview
+          // In a real app, this would be a signal to the backend that recording is complete
+          const blob = new Blob(recordedChunks, { type: "video/webm" });
+          const videoUrl = URL.createObjectURL(blob);
+          console.log("Full video Blob URL:", videoUrl);
+
+          // For testing, you can download the full video locally
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = videoUrl;
+          a.download = `my-recording-${Date.now()}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          URL.revokeObjectURL(videoUrl); // Clean up
+          a.remove();
+
+          recordedChunks = []; // Clear chunks for next recording
+          chunkCounter = 0; // Reset counter
+          displayMessage(
+            "Recording saved locally (check downloads). Ready for new recording."
+          );
+          updateButtonStates(true, false); // Camera still on, recording off
+        };
+
+        // Start recording, emitting data every 3 seconds (3000 ms)
+        mediaRecorder.start(3000);
+        displayMessage(
+          "Recording started! Chunks are being generated every 3 seconds."
+        );
+        updateButtonStates(true, true); // Camera on, recording active
+      });
+
+      // --- Stop Recording Button Logic ---
+      stopRecordingButton.addEventListener("click", () => {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+      });
+
+      // Initial button state
+      updateButtonStates(false, false);
+      displayMessage('Click "Start Camera" to begin.');
+    </script>
+  </body>
+</html>

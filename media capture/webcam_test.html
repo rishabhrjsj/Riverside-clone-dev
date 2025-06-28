@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <video id="livevideo" autoplay></video>
+    <button id="video-access">video access</button>
+  </body>
+  <script>
+    async function playVideoFromCamera() {
+      try {
+        const constraints = { video: true, audio: true };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const videoElement = document.querySelector("#livevideo");
+        videoElement.srcObject = stream;
+        console.log("video connection established");
+      } catch (error) {
+        console.error("Error opening video camera.", error);
+      }
+    }
+
+    function recordCamera(stream){
+        const mediaRecorder = new MediaRecorder(stream);
+        m =mediaRecorder;
+        console.log(m.mimeType);
+        record.onclick = () => {
+  mediaRecorder.start();
+  console.log(mediaRecorder.state);
+  console.log("recorder started");
+  record.style.background = "red";
+  record.style.color = "black";
+};
+let chunks = [];
+
+mediaRecorder.ondataavailable = (e) => {
+  chunks.push(e.data);
+};
+
+stop.onclick = () => {
+  mediaRecorder.stop();
+  console.log(mediaRecorder.state);
+  console.log("recorder stopped");
+  record.style.background = "";
+  record.style.color = "";
+};
+
+    }
+
+    const videobutton = document.querySelector("#video-access");
+
+    videobutton.addEventListener("click", () => {
+      playVideoFromCamera();
+      console.log("function run");
+    });
+  </script>
+</html>
