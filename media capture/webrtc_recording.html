@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebRTC Video Conference</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 30px;
+        background-color: #f0f4f8;
+        color: #333;
+      }
+      .container {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 90%;
+        max-width: 1200px;
+      }
+      h1 {
+        color: #2c3e50;
+        margin-bottom: 25px;
+      }
+      .global-controls,
+      .conference-controls {
+        margin-bottom: 30px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .participant-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        padding: 20px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .participant-section h2 {
+        color: #34495e;
+        margin-bottom: 15px;
+      }
+      .participant-controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      video {
+        border: 4px solid #a7d9f7;
+        border-radius: 8px;
+        background-color: #e2f0fb;
+        width: 100%;
+        max-width: 480px;
+        height: auto;
+        min-height: 270px;
+        display: block;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        margin-bottom: 15px;
+      }
+      .video-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        width: 100%;
+        margin-top: 20px;
+        justify-items: center;
+      }
+
+      button {
+        padding: 12px 25px;
+        font-size: 1.1em;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease,
+          box-shadow 0.2s ease;
+        box_shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      }
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      button:disabled {
+        background-color: #cccccc !important;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* Button Colors */
+      .btn-green {
+        background-color: #4caf50;
+        color: white;
+      }
+      .btn-green:hover:not(:disabled) {
+        background-color: #45a049;
+      }
+      .btn-blue {
+        background-color: #008cba;
+        color: white;
+      }
+      .btn-blue:hover:not(:disabled) {
+        background-color: #007bb5;
+      }
+      .btn-red {
+        background-color: #f44336;
+        color: white;
+      }
+      .btn-red:hover:not(:disabled) {
+        background-color: #da190b;
+      }
+      .btn-purple {
+        background-color: #673ab7;
+        color: white;
+      }
+      .btn-purple:hover:not(:disabled) {
+        background-color: #512da8;
+      }
+      .btn-orange {
+        background-color: #ff9800;
+        color: white;
+      }
+      .btn-orange:hover:not(:disabled) {
+        background-color: #fb8c00;
+      }
+
+      .messages-container {
+        margin-top: 25px;
+        width: 100%;
+        max-width: 900px;
+        text-align: center;
+      }
+      #messages {
+        padding: 10px;
+        background-color: #e6ffe6;
+        border: 1px solid #c2f0c2;
+        border-radius: 6px;
+        color: #3c763d;
+        margin-bottom: 10px;
+      }
+      #errors {
+        padding: 10px;
+        background-color: #ffe6e6;
+        border: 1px solid #f0c2c2;
+        border-radius: 6px;
+        color: #a94442;
+        margin-bottom: 10px;
+      }
+      #status-list {
+        list-style: none;
+        padding: 0;
+        margin-top: 10px;
+        text-align: left;
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      #status-list li {
+        padding: 5px 0;
+        border-bottom: 1px dashed #eee;
+      }
+      #status-list li:last-child {
+        border-bottom: none;
+      }
+      .status-ready {
+        color: #4caf50;
+        font-weight: bold;
+      }
+      .status-pending {
+        color: #ff9800;
+      }
+
+      .download-link {
+        margin-top: 15px;
+        font-size: 1.1em;
+        color: #008cba;
+        text-decoration: none;
+        font-weight: bold;
+        transition: color 0.2s ease;
+      }
+      .download-link:hover {
+        color: #0056b3;
+        text-decoration: underline;
+      }
+
+      .remote-video-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+        margin-top: 30px;
+        width: 100%;
+      }
+      .remote-video-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        border: 2px solid #b3e0ff;
+        border-radius: 10px;
+        padding: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .remote-video-wrapper video {
+        max-width: 320px; /* Smaller for remote videos */
+        min-height: 180px;
+        border: 2px solid #80c0ff;
+      }
+      .remote-video-wrapper p {
+        margin-top: 5px;
+        font-weight: bold;
+        color: #34495e;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .container {
+          padding: 20px;
+          margin: 20px;
+          width: calc(100% - 40px);
+        }
+        .video-grid {
+          grid-template-columns: 1fr;
+        }
+        video {
+          min-height: 240px;
+        }
+        .global-controls,
+        .participant-controls,
+        .conference-controls {
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+        }
+        button {
+          width: 80%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>WebRTC Video Conference</h1>
+
+      <div class="conference-controls">
+        <input
+          type="text"
+          id="roomIdInput"
+          placeholder="Enter Room ID"
+          value="my-test-room"
+          style="
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 1em;
+          " />
+        <button id="joinRoomButton" class="btn-blue">Join Room</button>
+        <button id="leaveRoomButton" class="btn-red" disabled>
+          Leave Room
+        </button>
+      </div>
+
+      <div class="messages-container">
+        <div id="messages">Enter a Room ID and click "Join Room".</div>
+        <div id="errors"></div>
+        <div
+          id="current-room-display"
+          style="margin-top: 10px; font-weight: bold"></div>
+        <div
+          id="local-client-id-display"
+          style="margin-top: 5px; font-weight: bold"></div>
+        <div
+          id="room-size-display"
+          style="margin-top: 5px; font-weight: bold"></div>
+      </div>
+
+      <h2 style="margin-top: 40px">Local Video</h2>
+      <div class="participant-section">
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="participant-controls">
+          <button id="startLocalCameraButton" class="btn-green">
+            Start Local Camera
+          </button>
+          <button id="stopLocalCameraButton" class="btn-red" disabled>
+            Stop Local Camera
+          </button>
+        </div>
+      </div>
+
+      <h2 style="margin-top: 40px">Remote Participants</h2>
+      <div id="remoteVideosContainer" class="remote-video-container">
+        <!-- Remote video elements will be added here dynamically -->
+      </div>
+
+      <!-- Existing Recording Functionality (Kept separate for now) -->
+      <h2 style="margin-top: 40px">
+        Local Recording (Separate from Conference)
+      </h2>
+      <div class="global-controls">
+        <button id="startRecordingButton" class="btn-blue" disabled>
+          Start Local Recording
+        </button>
+        <button id="stopRecordingButton" class="btn-red" disabled>
+          Stop Local Recording
+        </button>
+      </div>
+      <div class="messages-container">
+        <ul id="status-list"></ul>
+      </div>
+      <div
+        style="
+          display: flex;
+          gap: 15px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 15px;
+        ">
+        <button id="fetchAndPlayButton" class="btn-purple">
+          Fetch & Play Last Processed Video
+        </button>
+        <button id="triggerConferenceMergeButton" class="btn-purple" disabled>
+          Trigger Conference Merge (from local recordings)
+        </button>
+      </div>
+      <video id="previewVideo" controls style="margin-top: 20px"></video>
+      <a id="downloadLink" class="download-link" style="display: none"
+        >Download Merged Video</a
+      >
+    </div>
+
+    <script>
+      const SIGNALING_SERVER_URL = "ws://localhost:8080"; // Signaling server URL
+      const BACKEND_API_URL = "http://localhost:3000"; // Your existing backend API
+
+      // UI Elements
+      const roomIdInput = document.getElementById("roomIdInput");
+      const joinRoomButton = document.getElementById("joinRoomButton");
+      const leaveRoomButton = document.getElementById("leaveRoomButton");
+      const currentRoomDisplay = document.getElementById(
+        "current-room-display"
+      );
+      const localClientIdDisplay = document.getElementById(
+        "local-client-id-display"
+      );
+      const roomSizeDisplay = document.getElementById("room-size-display");
+      const localVideo = document.getElementById("localVideo");
+      const startLocalCameraButton = document.getElementById(
+        "startLocalCameraButton"
+      );
+      const stopLocalCameraButton = document.getElementById(
+        "stopLocalCameraButton"
+      );
+      const remoteVideosContainer = document.getElementById(
+        "remoteVideosContainer"
+      );
+
+      const messagesDiv = document.getElementById("messages");
+      const errorsDiv = document.getElementById("errors");
+      const statusList = document.getElementById("status-list");
+
+      // Recording specific elements (from previous code)
+      const startRecordingButton = document.getElementById(
+        "startRecordingButton"
+      );
+      const stopRecordingButton = document.getElementById(
+        "stopRecordingButton"
+      );
+      const fetchAndPlayButton = document.getElementById("fetchAndPlayButton");
+      const triggerConferenceMergeButton = document.getElementById(
+        "triggerConferenceMergeButton"
+      );
+      const previewVideo = document.getElementById("previewVideo");
+      const downloadLink = document.getElementById("downloadLink");
+
+      // WebRTC State
+      let ws = null; // WebSocket connection to signaling server
+      let localStream = null; // Local media stream (camera/mic)
+      let peerConnections = {}; // Stores RTCPeerConnection objects: { remoteClientId: RTCPeerConnection }
+      let currentRoomId = null; // The WebRTC conference room ID
+      let localClientId = null; // Will be assigned by signaling server or generated
+      let isHost = false; // NEW: Track if this client is the host
+
+      // Recording State (from previous code)
+      let mediaRecorder = null;
+      let chunkSequence = 0;
+      let pendingChunkUploadPromises = [];
+      let recordingStartTime = null;
+      let recordingEndTime = null;
+      let recordingUserId = "webrtc-user"; // Fixed user ID for recording
+      let recordingRoomId = "default-room"; // The room ID specifically for recorded chunks
+
+      // Public STUN servers (no TURN for simplicity in demo)
+      const rtcConfig = {
+        iceServers: [
+          { urls: "stun:stun.l.google.com:19302" },
+          { urls: "stun:stun1.l.google.com:19302" },
+          // Add more public STUN servers for robustness
+        ],
+      };
+
+      // --- Helper Functions for UI feedback ---
+      function displayMessage(msg) {
+        messagesDiv.textContent = msg;
+        errorsDiv.textContent = "";
+      }
+
+      function displayError(err) {
+        const errorName = err.name || "UnknownError";
+        const errorMessage = err.message || "An unknown error occurred.";
+        errorsDiv.textContent = `Error: ${errorName} - ${errorMessage}`;
+        messagesDiv.textContent = "";
+        console.error("Detailed error:", err);
+      }
+
+      function updateButtonStates() {
+        const inRoom = currentRoomId !== null;
+        const localCameraOn = localStream !== null;
+        const recordingActive =
+          mediaRecorder && mediaRecorder.state === "recording";
+
+        roomIdInput.disabled = inRoom;
+        joinRoomButton.disabled = inRoom;
+        leaveRoomButton.disabled = !inRoom;
+
+        startLocalCameraButton.disabled = localCameraOn;
+        stopLocalCameraButton.disabled = !localCameraOn;
+
+        // Recording and Merge buttons are now host-controlled
+        startRecordingButton.disabled =
+          !localCameraOn || recordingActive || !isHost;
+        stopRecordingButton.disabled = !recordingActive || !isHost;
+        fetchAndPlayButton.disabled = recordingActive; // Still disabled if recording is active
+        // triggerConferenceMergeButton.disabled is managed by polling AND host status
+        // It will be enabled by pollConferenceStatus if readyForMerge is true AND isHost is true.
+      }
+
+      function generateUUID() {
+        return crypto.randomUUID();
+      }
+
+      // --- WebRTC Core Logic ---
+
+      async function startLocalCamera() {
+        displayMessage("Requesting local camera access...");
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+          localVideo.srcObject = localStream;
+          displayMessage("Local camera and microphone access granted.");
+          updateButtonStates();
+        } catch (error) {
+          displayError(`Error accessing local media devices: ${error.message}`);
+          console.error("Detailed media access error:", error);
+          updateButtonStates();
+        }
+      }
+
+      function stopLocalCamera() {
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+          localVideo.srcObject = null;
+          localStream = null;
+          displayMessage("Local camera and microphone stopped.");
+        }
+        updateButtonStates();
+      }
+
+      function createPeerConnection(remoteClientId) {
+        console.log(`Creating RTCPeerConnection for ${remoteClientId}`);
+        const pc = new RTCPeerConnection(rtcConfig);
+
+        // Add local tracks to the peer connection
+        if (localStream) {
+          localStream.getTracks().forEach((track) => {
+            pc.addTrack(track, localStream);
+          });
+        }
+
+        // Handle incoming tracks from the remote peer
+        pc.ontrack = (event) => {
+          console.log(`Received remote track from ${remoteClientId}`);
+          const remoteVideoElement = document.getElementById(
+            `remoteVideo-${remoteClientId}`
+          );
+          if (remoteVideoElement) {
+            // If the video element already exists, update its srcObject
+            if (remoteVideoElement.srcObject !== event.streams[0]) {
+              remoteVideoElement.srcObject = event.streams[0];
+            }
+          } else {
+            // Create a new video element for the remote stream
+            const wrapper = document.createElement("div");
+            wrapper.className = "remote-video-wrapper";
+            wrapper.id = `wrapper-${remoteClientId}`;
+
+            const video = document.createElement("video");
+            video.id = `remoteVideo-${remoteClientId}`;
+            video.autoplay = true;
+            video.playsinline = true;
+            video.srcObject = event.streams[0];
+            video.style.maxWidth = "320px"; // Apply specific style for remote videos
+            video.style.minHeight = "180px";
+            video.style.border = "2px solid #80c0ff";
+            video.style.borderRadius = "8px";
+
+            const p = document.createElement("p");
+            p.textContent = `Participant: ${remoteClientId.substring(
+              remoteClientId.lastIndexOf(":") + 1
+            )}`; // Show last part of ID
+
+            wrapper.appendChild(video);
+            wrapper.appendChild(p);
+            remoteVideosContainer.appendChild(wrapper);
+          }
+        };
+
+        // Handle ICE candidates (network information)
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            console.log(`Sending ICE candidate to ${remoteClientId}`);
+            ws.send(
+              JSON.stringify({
+                type: "candidate",
+                candidate: event.candidate,
+                targetClientId: remoteClientId,
+              })
+            );
+          }
+        };
+
+        // Log ICE connection state changes
+        pc.oniceconnectionstatechange = () => {
+          console.log(
+            `ICE connection state with ${remoteClientId}: ${pc.iceConnectionState}`
+          );
+          // You might want to update UI based on this state
+        };
+
+        return pc;
+      }
+
+      async function sendOffer(remoteClientId) {
+        const pc = peerConnections[remoteClientId];
+        if (!pc) {
+          console.error(
+            `No PeerConnection for ${remoteClientId} to send offer.`
+          );
+          return;
+        }
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          console.log(`Sending SDP offer to ${remoteClientId}`);
+          ws.send(
+            JSON.stringify({
+              type: "offer",
+              sdp: pc.localDescription,
+              targetClientId: remoteClientId,
+            })
+          );
+        } catch (error) {
+          console.error(
+            `Error creating or sending offer to ${remoteClientId}:`,
+            error
+          );
+        }
+      }
+
+      async function handleOffer(offer, senderClientId) {
+        console.log(`Received SDP offer from ${senderClientId}`);
+        let pc = peerConnections[senderClientId];
+        if (!pc) {
+          pc = createPeerConnection(senderClientId);
+          peerConnections[senderClientId] = pc;
+        }
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          console.log(`Sending SDP answer to ${senderClientId}`);
+          ws.send(
+            JSON.stringify({
+              type: "answer",
+              sdp: pc.localDescription,
+              targetClientId: senderClientId,
+            })
+          );
+        } catch (error) {
+          console.error(`Error handling offer from ${senderClientId}:`, error);
+        }
+      }
+
+      async function handleAnswer(answer, senderClientId) {
+        console.log(`Received SDP answer from ${senderClientId}`);
+        const pc = peerConnections[senderClientId];
+        if (!pc) {
+          console.error(
+            `No PeerConnection for ${senderClientId} to handle answer.`
+          );
+          return;
+        }
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer));
+        } catch (error) {
+          console.error(`Error handling answer from ${senderClientId}:`, error);
+        }
+      }
+
+      async function handleCandidate(candidate, senderClientId) {
+        console.log(`Received ICE candidate from ${senderClientId}`);
+        const pc = peerConnections[senderClientId];
+        if (!pc) {
+          console.error(
+            `No PeerConnection for ${senderClientId} to add candidate.`
+          );
+          return;
+        }
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (error) {
+          console.error(
+            `Error adding ICE candidate from ${senderClientId}:`,
+            error
+          );
+        }
+      }
+
+      function removeRemoteVideo(clientId) {
+        const wrapper = document.getElementById(`wrapper-${clientId}`);
+        if (wrapper) {
+          wrapper.remove();
+          console.log(`Removed remote video for ${clientId}`);
+        }
+      }
+
+      function closePeerConnection(clientId) {
+        if (peerConnections[clientId]) {
+          console.log(`Closing PeerConnection for ${clientId}`);
+          peerConnections[clientId].close();
+          delete peerConnections[clientId];
+        }
+      }
+
+      // --- WebSocket Signaling Logic ---
+
+      function connectWebSocket() {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          console.log("WebSocket already connected.");
+          return;
+        }
+
+        ws = new WebSocket(SIGNALING_SERVER_URL);
+
+        ws.onopen = () => {
+          console.log("WebSocket connected to signaling server.");
+          displayMessage("Connected to signaling server.");
+          // Local client ID is assigned by the signaling server on join,
+          // but we can use a temporary one or rely on the server's notification.
+          // For now, localClientId will be set when 'participant_joined' is received for self.
+        };
+
+        ws.onmessage = async (event) => {
+          const message = JSON.parse(event.data);
+          // console.log('WebSocket message received:', message);
+
+          switch (message.type) {
+            case "participant_joined":
+              // This message is sent to ALL clients in the room, including the one who just joined.
+              // The signaling server assigns the client ID.
+              if (!localClientId) {
+                // If this is our first 'participant_joined' message, it means we just joined
+                localClientId = message.clientId;
+                // Set host status based on the message from the signaling server
+                isHost = message.isHost || false;
+                localClientIdDisplay.textContent = `Your Client ID: ${localClientId.substring(
+                  localClientId.lastIndexOf(":") + 1
+                )} ${isHost ? "(Host)" : ""}`;
+              } else if (message.clientId === localClientId) {
+                // If it's a message about ourselves, update host status if it changed
+                isHost = message.isHost || false;
+                localClientIdDisplay.textContent = `Your Client ID: ${localClientId.substring(
+                  localClientId.lastIndexOf(":") + 1
+                )} ${isHost ? "(Host)" : ""}`;
+              }
+              roomSizeDisplay.textContent = `Participants in room: ${message.roomSize}`;
+              console.log(
+                `Participant ${message.clientId} joined. Room size: ${message.roomSize}. Is Host: ${message.isHost}`
+              );
+              // If a new participant joined and it's not us, create a peer connection and send an offer
+              if (message.clientId !== localClientId) {
+                const pc = createPeerConnection(message.clientId);
+                peerConnections[message.clientId] = pc;
+                await sendOffer(message.clientId);
+              }
+              updateButtonStates(); // Update button states after host status might have changed
+              break;
+            case "existing_participants":
+              // Sent to a newly joined client to inform about existing peers
+              message.participants.forEach((existingClientId) => {
+                console.log(
+                  `Existing participant in room: ${existingClientId}`
+                );
+                const pc = createPeerConnection(existingClientId);
+                peerConnections[existingClientId] = pc;
+                // Don't send offer immediately here; wait for them to send offer if they are 'older'
+                // or send offer if it's a new connection setup. For simplicity, the 'participant_joined'
+                // will trigger offers from the 'older' clients.
+              });
+              break;
+            case "participant_left":
+              console.log(
+                `Participant ${message.clientId} left. Room size: ${message.roomSize}`
+              );
+              roomSizeDisplay.textContent = `Participants in room: ${message.roomSize}`;
+              closePeerConnection(message.clientId);
+              removeRemoteVideo(message.clientId);
+              // If the host leaves, we might need to re-evaluate host status.
+              // For this demo, we'll rely on the signaling server to send a new 'participant_joined'
+              // message if it reassigns a host, or assume no host for recording if the host leaves.
+              if (message.clientId === localClientId) {
+                // If we left the room
+                isHost = false; // We are no longer host
+              }
+              updateButtonStates(); // Update button states after a participant leaves
+              break;
+            case "offer":
+              await handleOffer(message.sdp, message.senderClientId);
+              break;
+            case "answer":
+              await handleAnswer(message.sdp, message.senderClientId);
+              break;
+            case "candidate":
+              await handleCandidate(message.candidate, message.senderClientId);
+              break;
+            case "host_status_update": // NEW: For explicit host status updates from server
+              isHost = message.isHost;
+              localClientIdDisplay.textContent = `Your Client ID: ${localClientId.substring(
+                localClientId.lastIndexOf(":") + 1
+              )} ${isHost ? "(Host)" : ""}`;
+              displayMessage(
+                `You are now ${isHost ? "the Host" : "a regular participant"}.`
+              );
+              updateButtonStates();
+              break;
+            default:
+              console.warn(
+                "Unknown message type from signaling server:",
+                message.type
+              );
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket disconnected from signaling server.");
+          displayMessage("Disconnected from signaling server.");
+          currentRoomId = null;
+          localClientId = null;
+          isHost = false; // Reset host status on disconnect
+          currentRoomDisplay.textContent = "";
+          localClientIdDisplay.textContent = "";
+          roomSizeDisplay.textContent = "";
+          // Close all peer connections
+          Object.values(peerConnections).forEach((pc) => pc.close());
+          peerConnections = {};
+          // Remove all remote videos
+          remoteVideosContainer.innerHTML = "";
+          updateButtonStates();
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+          displayError("WebSocket error. Check console for details.");
+        };
+      }
+
+      function joinRoom() {
+        const roomId = roomIdInput.value.trim();
+        if (!roomId) {
+          displayError("Please enter a Room ID.");
+          return;
+        }
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          currentRoomId = roomId;
+          recordingRoomId = roomId; // Update recordingRoomId to match WebRTC room
+          ws.send(JSON.stringify({ type: "join", roomId: currentRoomId }));
+          currentRoomDisplay.textContent = `Joined Room: ${currentRoomId}`;
+          displayMessage(`Attempting to join room "${currentRoomId}"...`);
+          updateButtonStates();
+          // Ensure polling starts/restarts for the correct room
+          if (conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval);
+          }
+          conferenceStatusPollingInterval = setInterval(
+            pollConferenceStatus,
+            3000
+          );
+        } else {
+          displayError(
+            "WebSocket not connected. Please refresh and try again."
+          );
+        }
+      }
+
+      function leaveRoom() {
+        if (ws && ws.readyState === WebSocket.OPEN && currentRoomId) {
+          ws.send(JSON.stringify({ type: "leave", roomId: currentRoomId }));
+          displayMessage(`Leaving room "${currentRoomId}"...`);
+          // The onclose handler will clean up local state
+          // Also reset recordingRoomId to default if leaving WebRTC room
+          recordingRoomId = "default-room";
+          isHost = false; // Explicitly set host to false when leaving
+          if (conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval);
+          }
+          conferenceStatusPollingInterval = setInterval(
+            pollConferenceStatus,
+            3000
+          ); // Restart polling for default room
+          updateButtonStates(); // Update button states immediately
+        }
+      }
+
+      // --- Event Listeners for WebRTC UI ---
+      joinRoomButton.addEventListener("click", joinRoom);
+      leaveRoomButton.addEventListener("click", leaveRoom);
+      startLocalCameraButton.addEventListener("click", startLocalCamera);
+      stopLocalCameraButton.addEventListener("click", stopLocalCameraButton); // Corrected typo here
+
+      // --- Existing Recording Functionality (Adapted) ---
+
+      async function uploadVideoChunk(
+        chunkBlob,
+        chunkIndex,
+        roomId,
+        recordingId,
+        userId
+      ) {
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("chunkIndex", chunkIndex);
+        formData.append(
+          "videoChunk",
+          chunkBlob,
+          `chunk-${recordingId}-${chunkIndex}.webm`
+        );
+        formData.append("userId", userId);
+        formData.append("timestamp", Date.now());
+
+        try {
+          const response = await fetch(`${BACKEND_API_URL}/upload-chunk`, {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          const result = await response.json();
+          displayMessage(
+            `Chunk ${chunkIndex} uploaded (${result.message || "success"}).`
+          );
+          return true;
+        } catch (error) {
+          console.error(
+            `Error uploading chunk ${chunkIndex} for recording ${recordingId}:`,
+            error
+          );
+          displayError(
+            `Failed to upload chunk ${chunkIndex}. Check console for details. `
+          );
+          return false;
+        }
+      }
+
+      async function sendEndOfRecordingSignal(
+        roomId,
+        recordingId,
+        userId,
+        startTime,
+        endTime
+      ) {
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("userId", userId);
+        formData.append("isLastChunk", "true");
+        formData.append("recordingStartTime", startTime);
+        formData.append("recordingEndTime", endTime);
+
+        try {
+          const response = await fetch(`${BACKEND_API_URL}/upload-chunk`, {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          console.log(
+            `End of recording signal sent successfully for ${recordingId}.`
+          );
+          displayMessage(
+            `Recording ended for ${recordingId}. Signaled backend for processing.`
+          );
+        } catch (error) {
+          console.error(
+            `Error sending end of recording signal for ${recordingId}:`,
+            error
+          );
+          displayError(
+            `Failed to send end of recording signal for ${recordingId}. Video may not finalize correctly.`
+          );
+        }
+      }
+
+      startRecordingButton.addEventListener("click", () => {
+        if (!localStream) {
+          displayError("Start local camera first to record.");
+          return;
+        }
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          displayError("Already recording.");
+          return;
+        }
+        if (!isHost) {
+          // NEW: Only host can start recording
+          displayError("Only the host can start recording.");
+          return;
+        }
+
+        const recordingId = generateUUID();
+        chunkSequence = 0;
+        pendingChunkUploadPromises = [];
+
+        const options = { mimeType: "video/webm" };
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          displayError(
+            `MIME type ${options.mimeType} is not supported by your browser for recording.`
+          );
+          return;
+        }
+
+        mediaRecorder = new MediaRecorder(localStream, options);
+
+        mediaRecorder.onstart = () => {
+          recordingStartTime = Date.now();
+          console.log(`Local recorder started at ${recordingStartTime}`);
+          updateButtonStates();
+        };
+
+        mediaRecorder.ondataavailable = async (event) => {
+          if (event.data.size > 0) {
+            pendingChunkUploadPromises.push(
+              uploadVideoChunk(
+                event.data,
+                chunkSequence,
+                recordingRoomId, // Use the dedicated recordingRoomId
+                recordingId,
+                recordingUserId
+              )
+            );
+            chunkSequence++;
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          console.log(`Local MediaRecorder stopped (${recordingId}).`);
+          recordingEndTime = Date.now();
+          displayMessage(`Local recording stopped. Finalizing chunks...`);
+
+          try {
+            await Promise.all(pendingChunkUploadPromises);
+            console.log(`All local chunks uploaded for ${recordingId}.`);
+            await sendEndOfRecordingSignal(
+              recordingRoomId, // Use the dedicated recordingRoomId
+              recordingId,
+              recordingUserId,
+              recordingStartTime,
+              recordingEndTime
+            );
+          } catch (error) {
+            console.error(
+              `Error during local recording finalization (${recordingId}):`,
+              error
+            );
+            displayError(
+              `Failed to finalize local recording: ${error.message}`
+            );
+          } finally {
+            pendingChunkUploadPromises = [];
+            updateButtonStates();
+          }
+        };
+
+        mediaRecorder.start(10000); // 10-second timeslice
+        displayMessage("Local recording started! Chunks are being sent.");
+        updateButtonStates();
+      });
+
+      stopRecordingButton.addEventListener("click", () => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+          if (!isHost) {
+            // NEW: Only host can stop recording
+            displayError("Only the host can stop recording.");
+            return;
+          }
+          displayMessage("Stopping local recording...");
+          mediaRecorder.stop();
+        } else {
+          displayError("No active local recording to stop.");
+        }
+      });
+
+      fetchAndPlayButton.addEventListener("click", async () => {
+        displayMessage("Fetching last processed video from backend...");
+        try {
+          const response = await fetch(`${BACKEND_API_URL}/send-blob`, {
+            method: "GET",
+          });
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          const videoBlob = await response.blob();
+          console.log("Received video Blob from backend:", videoBlob);
+          const videoUrl = URL.createObjectURL(videoBlob);
+          previewVideo.src = videoUrl;
+          previewVideo.load();
+          previewVideo.play();
+          downloadLink.href = videoUrl;
+          downloadLink.download = `recorded-video-${Date.now()}.webm`;
+          downloadLink.style.display = "block";
+          displayMessage(
+            "Video fetched and loaded for preview. You can also download it."
+          );
+        } catch (error) {
+          console.error("Error fetching/playing video from backend:", error);
+          displayError(
+            `Failed to fetch or play video from backend: ${error.message}`
+          );
+          previewVideo.src = "";
+          downloadLink.style.display = "none";
+        }
+      });
+
+      // Polling for conference merge status (for the *recorded* tracks, not live WebRTC)
+      let conferenceStatusPollingInterval = null;
+      async function pollConferenceStatus() {
+        const targetRoomId = recordingRoomId;
+
+        if (!targetRoomId) {
+          statusList.innerHTML = "";
+          triggerConferenceMergeButton.disabled = true;
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${BACKEND_API_URL}/conference-status/${targetRoomId}`
+          );
+          if (!response.ok) {
+            if (response.status === 404) {
+              statusList.innerHTML = `<li>Waiting for first recording to register in room '${targetRoomId}'...</li>`;
+              triggerConferenceMergeButton.disabled = true;
+              return;
+            }
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          const status = await response.json();
+
+          statusList.innerHTML = "";
+          if (status.totalTracks > 0) {
+            const header = document.createElement("li");
+            header.innerHTML = `<strong>Recorded Tracks Status for Room '${targetRoomId}': ${status.totalTracks}, Ready: ${status.readyTracks}</strong>`;
+            statusList.appendChild(header);
+
+            status.tracks.forEach((track) => {
+              const listItem = document.createElement("li");
+              listItem.textContent = `User ${
+                track.userId
+              } (Track: ${track.recordingId.substring(0, 8)}...): `;
+              const statusSpan = document.createElement("span");
+              statusSpan.textContent = track.isReady
+                ? "Ready"
+                : "Processing...";
+              statusSpan.className = track.isReady
+                ? "status-ready"
+                : "status-pending";
+              listItem.appendChild(statusSpan);
+              statusList.appendChild(listItem);
+            });
+          } else {
+            const noTracks = document.createElement("li");
+            noTracks.textContent = `No local recording tracks initiated yet for room '${targetRoomId}'.`;
+            statusList.appendChild(noTracks);
+          }
+
+          // Merge button enabled only if readyForMerge AND current client is host
+          triggerConferenceMergeButton.disabled = !(
+            status.readyForMerge && isHost
+          );
+
+          if (status.readyForMerge && conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval);
+            conferenceStatusPollingInterval = null;
+            displayMessage(
+              "All local recordings processed individually. Ready to merge conference!"
+            );
+          }
+        } catch (error) {
+          console.error("Error polling conference status:", error);
+          displayError(
+            `Failed to fetch conference status for room '${targetRoomId}': ${error.message}`
+          );
+          triggerConferenceMergeButton.disabled = true;
+          if (error.message.includes("404")) {
+            // Expected 404 before recordings start, keep polling
+          } else if (conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval);
+            conferenceStatusPollingInterval = null;
+          }
+        }
+      }
+
+      triggerConferenceMergeButton.addEventListener("click", async () => {
+        if (!recordingRoomId) {
+          displayError(
+            "No active room ID for recordings to merge. Please record first."
+          );
+          return;
+        }
+        if (!isHost) {
+          // NEW: Only host can trigger merge
+          displayError("Only the host can trigger the conference merge.");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `${BACKEND_API_URL}/conference-status/${recordingRoomId}`
+          );
+          const status = await response.json();
+          if (!status.readyForMerge) {
+            displayError(
+              "Not all individual recorded tracks are processed yet. Please wait."
+            );
+            return;
+          }
+        } catch (error) {
+          displayError(
+            "Could not verify recorded conference readiness. Please try again."
+          );
+          return;
+        }
+
+        displayMessage(
+          `Triggering conference merge for Recorded Room ID: ${recordingRoomId}... This might take a while!`
+        );
+        triggerConferenceMergeButton.disabled = true;
+
+        try {
+          const response = await fetch(
+            `${BACKEND_API_URL}/trigger-conference-merge`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                roomId: recordingRoomId,
+                conferenceStartTime: Date.now(),
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          const result = await response.json();
+          console.log("Conference merge request sent:", result);
+          displayMessage(
+            `Conference merge job queued for Recorded Room ID: ${recordingRoomId}. Worker will process it.`
+          );
+        } catch (error) {
+          console.error("Error triggering conference merge:", error);
+          displayError(`Failed to trigger conference merge: ${error.message}`);
+          triggerConferenceMergeButton.disabled = false;
+        }
+      });
+
+      // Initial setup
+      connectWebSocket(); // Connect to signaling server on load
+      updateButtonStates();
+      // Start polling for recorded conference status immediately for the default room
+      conferenceStatusPollingInterval = setInterval(pollConferenceStatus, 3000);
+    </script>
+  </body>
+</html>

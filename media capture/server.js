@@ -1,4 +1,4 @@
-// --- Imports (Ensure these are at the top of your server.js file) ---
+// --- Imports ---
 const express = require("express");
 const multer = require("multer");
 const cors = require("cors");
@@ -6,13 +6,13 @@ const AWS = require("aws-sdk");
 const path = require("path");
 require("dotenv").config();
 
-// --- NEW: BullMQ Imports ---
+// --- BullMQ Imports ---
 const { Queue } = require("bullmq");
 
 // --- Express App Setup ---
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Essential for parsing JSON body
 app.use(express.urlencoded({ extended: true }));
 
 // --- Multer Configuration ---
@@ -28,12 +28,11 @@ AWS.config.update({
 const s3 = new AWS.S3();
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
-// --- NEW: Redis Connection for BullMQ ---
-// Connect to your Dockerized Redis instance
+// --- Redis Connection for BullMQ ---
 const redisConnection = {
   host: process.env.REDIS_HOST || "localhost",
   port: parseInt(process.env.REDIS_PORT || "6379"),
-  password: process.env.REDIS_PASSWORD || undefined, // If your Redis has a password
+  password: process.env.REDIS_PASSWORD || undefined,
 };
 console.log(
   "Connecting BullMQ to Redis at:",
@@ -47,6 +46,10 @@ const videoProcessingQueue = new Queue("videoProcessing", {
   connection: redisConnection,
 });
 
+// --- In-memory store for participant metadata (DEMO ONLY - use DB in production) ---
+// Structure: { roomId: { conferenceRecordingId: { userId: { userId, recordingStartTime, recordingEndTime, s3Key? } } } }
+const conferenceMetadataStore = {};
+
 // --- Helper function to pad chunk index ---
 function padChunkIndex(index, length = 5) {
   return String(index).padStart(length, "0");
@@ -54,14 +57,6 @@ function padChunkIndex(index, length = 5) {
 
 /**
  * Uploads a single video chunk to AWS S3.
- *
- * @param {Buffer} chunkBuffer - The binary data of the video chunk (req.file.buffer).
- * @param {string} mimeType - The MIME type of the chunk (req.file.mimetype).
- * @param {string} roomId - The master session ID.
- * @param {string} recordingId - The specific participant's recording track ID.
- * @param {number} chunkIndex - The sequential index of this chunk.
- * @returns {Promise<AWS.S3.ManagedUpload.SendData>} - A promise that resolves with S3 upload data on success.
- * @throws {Error} - Throws an error if the S3 upload fails.
  */
 async function uploadChunkToS3(
   chunkBuffer,
@@ -70,22 +65,20 @@ async function uploadChunkToS3(
   recordingId,
   chunkIndex
 ) {
-  // Construct the S3 Key using path.join, then replace all backslashes with forward slashes
   let s3Key = path.join(
     "recordings",
     roomId,
-    recordingId,
+    recordingId, // This recordingId is unique per participant's track within a conference
     "chunks",
-    `chunk_${padChunkIndex(chunkIndex)}.webm` // Assuming .webm for video chunks
+    `chunk_${padChunkIndex(chunkIndex)}.webm`
   );
-  s3Key = s3Key.replace(/\\/g, "/"); // <-- FIX: Replace backslashes with forward slashes for S3
+  s3Key = s3Key.replace(/\\/g, "/");
 
   const uploadParams = {
     Bucket: S3_BUCKET_NAME,
     Key: s3Key,
     Body: chunkBuffer,
     ContentType: mimeType,
-    // ACL: 'private', // Optional: Make objects private by default
   };
 
   try {
@@ -103,22 +96,89 @@ async function uploadChunkToS3(
   }
 }
 
-// --- UPDATED: Function to trigger a background video reassembly job (now adds to queue) ---
-async function triggerVideoReassemblyJob(jobDetails) {
+// --- Function to trigger a background video reassembly job ---
+async function triggerIndividualTrackProcessingJob(jobDetails) {
   try {
-    await videoProcessingQueue.add("processVideoJob", jobDetails, {
+    await videoProcessingQueue.add("processIndividualTrackJob", jobDetails, {
       removeOnComplete: true,
       removeOnFail: false,
-      jobId: `process-${jobDetails.recordingId}`,
+      jobId: `process-track-${jobDetails.userId}`, // Use userId as the unique job ID for individual tracks
     });
     console.log(
-      `[JOB QUEUE] Added job for recording track: ${jobDetails.recordingId} to queue.`
+      `[JOB QUEUE] Added individual track job for user: ${jobDetails.userId} to queue.`
     );
   } catch (error) {
     console.error(
-      `[JOB QUEUE] Failed to add job for recording track ${jobDetails.recordingId}:`,
+      `[JOB QUEUE] Failed to add individual track job for user ${jobDetails.userId}:`,
       error
     );
+  }
+}
+
+// --- Function to trigger a conference merge job ---
+async function triggerConferenceMergeJob(
+  roomId,
+  conferenceRecordingId,
+  hostUserId
+) {
+  const conferenceSessionMetadata =
+    conferenceMetadataStore[roomId] &&
+    conferenceMetadataStore[roomId][conferenceRecordingId];
+
+  if (!conferenceSessionMetadata) {
+    throw new Error(
+      `No conference session metadata found for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId}. Cannot merge.`
+    );
+  }
+
+  const individualTracksMetadata = Object.values(conferenceSessionMetadata);
+
+  // Ensure all tracks have their s3Key set before queuing the merge job
+  const allTracksReady = individualTracksMetadata.every(
+    (track) => track.s3Key && typeof track.s3Key === "string"
+  );
+  if (!allTracksReady) {
+    throw new Error(
+      `Not all individual tracks for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId} have their S3 keys ready. Cannot merge.`
+    );
+  }
+
+  if (individualTracksMetadata.length === 0) {
+    throw new Error(
+      `No individual track metadata found for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId}. Cannot merge.`
+    );
+  }
+
+  // Determine the actual conference start time from the earliest recordingStartTime among participants
+  const actualConferenceStartTime = Math.min(
+    ...individualTracksMetadata.map((track) => track.recordingStartTime)
+  );
+
+  try {
+    await videoProcessingQueue.add(
+      "mergeConferenceJob",
+      {
+        roomId,
+        conferenceRecordingId,
+        actualConferenceStartTime, // Pass the determined earliest start time
+        individualTracks: individualTracksMetadata, // Pass all collected metadata
+        hostUserId, // Pass the host's user ID for audio selection
+      },
+      {
+        removeOnComplete: true,
+        removeOnFail: false,
+        jobId: `merge-conference-${conferenceRecordingId}`,
+      }
+    );
+    console.log(
+      `[JOB QUEUE] Added conference merge job for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId} with ${individualTracksMetadata.length} tracks to queue. Host Audio: ${hostUserId}`
+    );
+  } catch (error) {
+    console.error(
+      `[JOB QUEUE] Failed to add conference merge job for Room ID ${roomId}, Recording ID ${conferenceRecordingId}:`,
+      error
+    );
+    throw error; // Re-throw to inform the caller
   }
 }
 
@@ -127,43 +187,71 @@ let lastProcessedVideoLocation = null;
 
 // --- API Endpoint to Receive Chunks ---
 app.post("/upload-chunk", upload.single("videoChunk"), async (req, res) => {
-  const { roomId, recordingId, chunkIndex, userId, timestamp, isLastChunk } =
-    req.body;
-  const videoChunkFile = req.file;
-
-  console.log("Received chunk data:", {
+  const {
     roomId,
     recordingId,
-    chunkIndex: chunkIndex,
+    chunkIndex,
     userId,
     timestamp,
-    isLastChunk: isLastChunk === "true",
-    fileReceived: !!videoChunkFile,
-  });
+    isLastChunk,
+    recordingStartTime,
+    recordingEndTime,
+  } = req.body;
+
+  const videoChunkFile = req.file;
 
   if (isLastChunk === "true") {
-    if (!roomId || !recordingId || !userId) {
+    if (
+      !roomId ||
+      !recordingId ||
+      !userId ||
+      !recordingStartTime ||
+      !recordingEndTime
+    ) {
       console.error(
-        "Validation Error: Missing essential metadata for final signal.",
-        { roomId, recordingId, userId }
+        "Validation Error: Missing essential metadata or timestamps for final signal.",
+        { roomId, recordingId, userId, recordingStartTime, recordingEndTime }
       );
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Missing essential metadata for final signal.",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Missing essential metadata or timestamps for final signal.",
+      });
     }
     console.log(
-      `Received FINAL signal for recording track: ${recordingId} in room: ${roomId}`
+      `Received FINAL signal for recording track: ${recordingId} in room: ${roomId}. User: ${userId}. Start: ${recordingStartTime}, End: ${recordingEndTime}`
     );
-    await triggerVideoReassemblyJob({ roomId, recordingId, userId });
-    return res
-      .status(200)
-      .json({
-        success: true,
-        message: "End of recording signal received. Processing job queued.",
-      });
+
+    // Store metadata in the in-memory store for later conference merging
+    if (!conferenceMetadataStore[roomId]) {
+      conferenceMetadataStore[roomId] = {};
+    }
+    if (!conferenceMetadataStore[roomId][recordingId]) {
+      // recordingId here is the conferenceRecordingId
+      conferenceMetadataStore[roomId][recordingId] = {};
+    }
+    // Store individual track details under the conferenceRecordingId
+    conferenceMetadataStore[roomId][recordingId][userId] = {
+      // userId is the unique identifier for THIS track
+      recordingId: recordingId, // This is the conferenceRecordingId
+      userId: userId, // This is the individual participant's recordingUserId
+      recordingStartTime: parseInt(recordingStartTime),
+      recordingEndTime: parseInt(recordingEndTime),
+      s3Key: undefined, // Initialize s3Key as undefined, will be updated by worker
+    };
+
+    // FIX: Pass userId explicitly as 'userId' in jobDetails
+    await triggerIndividualTrackProcessingJob({
+      roomId,
+      userId: userId, // Pass userId here
+      conferenceRecordingId: recordingId, // This is the conference recording ID
+      recordingStartTime: parseInt(recordingStartTime),
+      recordingEndTime: parseInt(recordingEndTime),
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "End of recording signal received. Processing job queued.",
+    });
   }
 
   if (!roomId || !recordingId || chunkIndex === undefined || !userId) {
@@ -171,54 +259,135 @@ app.post("/upload-chunk", upload.single("videoChunk"), async (req, res) => {
       "Validation Error: Missing required chunk metadata for file upload.",
       { roomId, recordingId, chunkIndex, userId }
     );
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: "Missing required chunk metadata for file upload.",
-      });
+    return res.status(400).json({
+      success: false,
+      message: "Missing required chunk metadata for file upload.",
+    });
   }
 
   if (!videoChunkFile || !videoChunkFile.buffer) {
-    console.warn(
-      "Error: Chunk request received without a file buffer for an intermediate chunk.",
-      { roomId, recordingId, chunkIndex }
-    );
+    console.warn("Received a chunk request but no file buffer was present.");
     return res
       .status(400)
-      .json({
-        success: false,
-        message: "No video chunk file received for intermediate chunk.",
-      });
+      .json({ success: false, message: "No video chunk file received." });
   }
 
   try {
+    // Here, recordingId from frontend is actually conferenceRecordingId
+    // The individual track ID for S3 will be the userId
     await uploadChunkToS3(
       videoChunkFile.buffer,
       videoChunkFile.mimetype,
       roomId,
-      recordingId,
+      userId, // Use userId as the individual track ID in S3 path
       parseInt(chunkIndex)
     );
 
-    res
-      .status(200)
-      .json({
-        success: true,
-        message: `Chunk ${chunkIndex} received and uploaded to S3.`,
-      });
+    res.status(200).json({
+      success: true,
+      message: `Chunk ${chunkIndex} received and uploaded to S3.`,
+    });
   } catch (error) {
     console.error(
       `Error in /upload-chunk endpoint for chunk ${chunkIndex}:`,
       error.message
     );
-    res
-      .status(500)
-      .json({
-        success: false,
-        message: `Failed to process chunk ${chunkIndex} on server: ${error.message}`,
-      });
+    res.status(500).json({
+      success: false,
+      message: `Failed to process chunk ${chunkIndex} on server: ${error.message}`,
+    });
   }
+});
+
+// --- API Endpoint for Worker to Update Individual Track Metadata ---
+app.post("/update-individual-track-metadata", (req, res) => {
+  const {
+    roomId,
+    individualRecordingId,
+    conferenceRecordingId,
+    s3Key,
+    recordingStartTime,
+    recordingEndTime,
+  } = req.body; // Added timestamps back
+  if (roomId && individualRecordingId && conferenceRecordingId && s3Key) {
+    if (
+      conferenceMetadataStore[roomId] &&
+      conferenceMetadataStore[roomId][conferenceRecordingId] &&
+      conferenceMetadataStore[roomId][conferenceRecordingId][
+        individualRecordingId
+      ]
+    ) {
+      conferenceMetadataStore[roomId][conferenceRecordingId][
+        individualRecordingId
+      ].s3Key = s3Key;
+      // Update timestamps in metadata store if they are passed back from worker (optional, but good for consistency)
+      if (recordingStartTime !== undefined) {
+        conferenceMetadataStore[roomId][conferenceRecordingId][
+          individualRecordingId
+        ].recordingStartTime = parseInt(recordingStartTime);
+      }
+      if (recordingEndTime !== undefined) {
+        conferenceMetadataStore[roomId][conferenceRecordingId][
+          individualRecordingId
+        ].recordingEndTime = parseInt(recordingEndTime);
+      }
+
+      console.log(
+        `Server: Updated s3Key for individual recording ${individualRecordingId} in conference ${conferenceRecordingId} in room ${roomId}: ${s3Key}`
+      );
+      res.status(200).json({ success: true });
+    } else {
+      console.warn(
+        `Server: Attempted to update metadata for non-existent individual recording ${individualRecordingId} in conference ${conferenceRecordingId} in room ${roomId}.`
+      );
+      res.status(404).json({
+        success: false,
+        message: "Recording not found in metadata store.",
+      });
+    }
+  } else {
+    res.status(400).json({
+      success: false,
+      message:
+        "Missing roomId, individualRecordingId, conferenceRecordingId, or s3Key.",
+    });
+  }
+});
+
+// --- API Endpoint to Get Conference Status (for Frontend to check readiness) ---
+app.get("/conference-status/:roomId/:conferenceRecordingId", (req, res) => {
+  const { roomId, conferenceRecordingId } = req.params;
+  const conferenceSessionMetadata =
+    conferenceMetadataStore[roomId] &&
+    conferenceMetadataStore[roomId][conferenceRecordingId];
+
+  if (!conferenceSessionMetadata) {
+    return res.status(404).json({
+      message: "Conference session not found or no recordings started yet.",
+      readyForMerge: false,
+    });
+  }
+
+  const individualTracks = Object.values(conferenceSessionMetadata);
+  const totalTracks = individualTracks.length;
+  const readyTracks = individualTracks.filter(
+    (track) => track.s3Key && typeof track.s3Key === "string"
+  ).length;
+
+  const readyForMerge = totalTracks > 0 && totalTracks === readyTracks;
+
+  res.status(200).json({
+    roomId,
+    conferenceRecordingId,
+    totalTracks,
+    readyTracks,
+    readyForMerge,
+    tracks: individualTracks.map((track) => ({
+      recordingId: track.recordingId, // This is the conferenceRecordingId
+      userId: track.userId, // This is the individual participant's recordingUserId
+      isReady: !!track.s3Key, // Simple boolean flag for frontend
+    })),
+  });
 });
 
 // --- API Endpoint to Update lastProcessedVideoLocation (for demo ONLY) ---
@@ -237,15 +406,48 @@ app.post("/update-last-processed-video-location", (req, res) => {
   }
 });
 
+// --- API Endpoint to Trigger Conference Merge ---
+app.post("/trigger-conference-merge", async (req, res) => {
+  const { roomId, conferenceRecordingId, hostUserId } = req.body;
+
+  if (!roomId || !conferenceRecordingId || !hostUserId) {
+    console.error(
+      "Validation Error: Missing roomId, conferenceRecordingId, or hostUserId for conference merge trigger."
+    );
+    return res.status(400).json({
+      success: false,
+      message: "Missing required parameters for conference merge trigger.",
+    });
+  }
+
+  console.log(
+    `Received request to trigger conference merge for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId}. Host Audio: ${hostUserId}`
+  );
+  try {
+    await triggerConferenceMergeJob(roomId, conferenceRecordingId, hostUserId);
+    res.status(200).json({
+      success: true,
+      message: `Conference merge job queued for Room ID: ${roomId}, Recording ID: ${conferenceRecordingId}.`,
+    });
+  } catch (error) {
+    console.error(
+      `Error triggering conference merge for Room ID ${roomId}, Recording ID ${conferenceRecordingId}:`,
+      error
+    );
+    res.status(500).json({
+      success: false,
+      message: `Failed to queue conference merge job: ${error.message}`,
+    });
+  }
+});
+
 // --- API Endpoint to Send Processed Video from S3 ---
 app.get("/send-blob", async (req, res) => {
   if (!lastProcessedVideoLocation) {
-    return res
-      .status(404)
-      .json({
-        message:
-          "No processed video available to send. Please record and wait for processing simulation.",
-      });
+    return res.status(404).json({
+      message:
+        "No processed video available to send. Please record and wait for processing simulation.",
+    });
   }
 
   const downloadParams = {
@@ -269,18 +471,14 @@ app.get("/send-blob", async (req, res) => {
       error
     );
     if (error.code === "NoSuchKey") {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Processed video not found in S3 (might still be processing or path is incorrect).",
-        });
-    }
-    res
-      .status(500)
-      .json({
-        message: `Failed to retrieve processed video from S3: ${error.message}`,
+      return res.status(404).json({
+        message:
+          "Processed video not found in S3 (might still be processing or path is incorrect).",
       });
+    }
+    res.status(500).json({
+      message: `Failed to retrieve processed video from S3: ${error.message}`,
+    });
   }
 });
 

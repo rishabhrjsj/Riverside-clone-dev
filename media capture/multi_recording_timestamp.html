@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi-Party Webcam Recorder with Staggered Joins</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 30px;
+        background-color: #f0f4f8;
+        color: #333;
+      }
+      .container {
+        background-color: #fff;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 90%; /* Make container more responsive */
+        max-width: 1200px; /* Wider for multiple videos */
+      }
+      h1 {
+        color: #2c3e50;
+        margin-bottom: 25px;
+      }
+      .global-controls {
+        margin-bottom: 30px;
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      .participant-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 30px;
+        border: 2px solid #ddd;
+        border-radius: 10px;
+        padding: 20px;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .participant-section h2 {
+        color: #34495e;
+        margin-bottom: 15px;
+      }
+      .participant-controls {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      video {
+        border: 4px solid #a7d9f7; /* Light blue border */
+        border-radius: 8px; /* Rounded corners */
+        background-color: #e2f0fb; /* Lighter blue background */
+        width: 100%; /* Make it responsive */
+        max-width: 480px; /* Smaller for multiple videos */
+        height: auto; /* Maintain aspect ratio */
+        min-height: 270px; /* Minimum height for visibility */
+        display: block; /* Remove extra space below video */
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        margin-bottom: 15px; /* Added margin for separation */
+      }
+      .video-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        width: 100%;
+        margin-top: 20px;
+        justify-items: center;
+      }
+
+      button {
+        padding: 12px 25px;
+        font-size: 1.1em;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background-color 0.3s ease, transform 0.2s ease,
+          box-shadow 0.2s ease;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        font-weight: 600;
+      }
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+      }
+      button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      button:disabled {
+        background-color: #cccccc !important;
+        cursor: not-allowed;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* Button Colors */
+      .btn-green {
+        background-color: #4caf50;
+        color: white;
+      }
+      .btn-green:hover:not(:disabled) {
+        background-color: #45a049;
+      }
+      .btn-blue {
+        background-color: #008cba;
+        color: white;
+      }
+      .btn-blue:hover:not(:disabled) {
+        background-color: #007bb5;
+      }
+      .btn-red {
+        background-color: #f44336;
+        color: white;
+      }
+      .btn-red:hover:not(:disabled) {
+        background-color: #da190b;
+      }
+      .btn-purple {
+        background-color: #673ab7;
+        color: white;
+      }
+      .btn-purple:hover:not(:disabled) {
+        background-color: #512da8;
+      }
+      .btn-orange {
+        background-color: #ff9800;
+        color: white;
+      }
+      .btn-orange:hover:not(:disabled) {
+        background-color: #fb8c00;
+      }
+
+      .messages-container {
+        margin-top: 25px;
+        width: 100%;
+        max-width: 900px; /* Wider for messages */
+        text-align: center;
+      }
+      #messages {
+        padding: 10px;
+        background-color: #e6ffe6;
+        border: 1px solid #c2f0c2;
+        border-radius: 6px;
+        color: #3c763d;
+        margin-bottom: 10px;
+      }
+      #errors {
+        padding: 10px;
+        background-color: #ffe6e6;
+        border: 1px solid #f0c2c2;
+        border-radius: 6px;
+        color: #a94442;
+        margin-bottom: 10px;
+      }
+      #status-list {
+        list-style: none;
+        padding: 0;
+        margin-top: 10px;
+        text-align: left;
+        max-width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      #status-list li {
+        padding: 5px 0;
+        border-bottom: 1px dashed #eee;
+      }
+      #status-list li:last-child {
+        border-bottom: none;
+      }
+      .status-ready {
+        color: #4caf50;
+        font-weight: bold;
+      }
+      .status-pending {
+        color: #ff9800;
+      }
+
+      .download-link {
+        margin-top: 15px;
+        font-size: 1.1em;
+        color: #008cba;
+        text-decoration: none;
+        font-weight: bold;
+        transition: color 0.2s ease;
+      }
+      .download-link:hover {
+        color: #0056b3;
+        text-decoration: underline;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 768px) {
+        .container {
+          padding: 20px;
+          margin: 20px;
+          width: calc(100% - 40px);
+        }
+        .video-grid {
+          grid-template-columns: 1fr; /* Stack videos on small screens */
+        }
+        video {
+          min-height: 240px;
+        }
+        .global-controls,
+        .participant-controls {
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+        }
+        button {
+          width: 80%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Multi-Party Webcam Recorder</h1>
+
+      <div class="global-controls">
+        <button id="startConferenceSessionButton" class="btn-orange">
+          Start Conference Session
+        </button>
+        <button id="stopAllRecordingsButton" class="btn-red" disabled>
+          Stop All Recordings
+        </button>
+      </div>
+
+      <div class="messages-container">
+        <div id="messages">Click "Start Conference Session" to begin.</div>
+        <div id="errors"></div>
+        <div
+          id="room-id-display"
+          style="margin-top: 10px; font-weight: bold"></div>
+        <ul id="status-list"></ul>
+        <!-- NEW: For displaying individual track status -->
+      </div>
+
+      <div class="video-grid">
+        <!-- Participant 1 -->
+        <div class="participant-section">
+          <h2>Participant 1</h2>
+          <video id="liveVideo1" autoplay playsinline muted></video>
+          <div class="participant-controls">
+            <button id="startCamera1Button" class="btn-green">
+              Start Camera
+            </button>
+            <button id="startRecording1Button" class="btn-blue" disabled>
+              Start Recording
+            </button>
+            <button id="stopRecording1Button" class="btn-red" disabled>
+              Stop Recording
+            </button>
+          </div>
+        </div>
+
+        <!-- Participant 2 -->
+        <div class="participant-section">
+          <h2>Participant 2</h2>
+          <video id="liveVideo2" autoplay playsinline muted></video>
+          <div class="participant-controls">
+            <button id="startCamera2Button" class="btn-green">
+              Start Camera
+            </button>
+            <button id="startRecording2Button" class="btn-blue" disabled>
+              Start Recording
+            </button>
+            <button id="stopRecording2Button" class="btn-red" disabled>
+              Stop Recording
+            </button>
+          </div>
+        </div>
+
+        <!-- Add more participants as needed, e.g., Participant 3 -->
+        <!--
+        <div class="participant-section">
+          <h2>Participant 3</h2>
+          <video id="liveVideo3" autoplay playsinline muted></video>
+          <div class="participant-controls">
+            <button id="startCamera3Button" class="btn-green">Start Camera</button>
+            <button id="startRecording3Button" class="btn-blue" disabled>Start Recording</button>
+            <button id="stopRecording3Button" class="btn-red" disabled>Stop Recording</button>
+          </div>
+        </div>
+        -->
+      </div>
+
+      <h2 style="margin-top: 40px">Processed Videos</h2>
+      <div
+        style="
+          display: flex;
+          gap: 15px;
+          flex-wrap: wrap;
+          justify-content: center;
+          margin-top: 15px;
+        ">
+        <button id="fetchAndPlayButton" class="btn-purple">
+          Fetch & Play Last Processed Video
+        </button>
+        <button id="triggerConferenceMergeButton" class="btn-purple" disabled>
+          Trigger Conference Merge
+        </button>
+      </div>
+      <video id="previewVideo" controls style="margin-top: 20px"></video>
+      <a id="downloadLink" class="download-link" style="display: none"
+        >Download Merged Video</a
+      >
+    </div>
+
+    <script>
+      // Participant video elements and control buttons
+      const participants = [
+        {
+          id: 1,
+          videoElement: document.getElementById("liveVideo1"),
+          startCameraButton: document.getElementById("startCamera1Button"),
+          startRecordingButton: document.getElementById(
+            "startRecording1Button"
+          ),
+          stopRecordingButton: document.getElementById("stopRecording1Button"),
+          mediaStream: null,
+          mediaRecorder: null,
+          chunkSequence: 0,
+          pendingChunkUploadPromises: [],
+          recordingStartTime: null,
+          recordingEndTime: null,
+          userId: "demo-user-1", // Fixed user ID for this participant
+          recordingId: null, // Will be set when recording starts
+        },
+        {
+          id: 2,
+          videoElement: document.getElementById("liveVideo2"),
+          startCameraButton: document.getElementById("startCamera2Button"),
+          startRecordingButton: document.getElementById(
+            "startRecording2Button"
+          ),
+          stopRecordingButton: document.getElementById("stopRecording2Button"),
+          mediaStream: null,
+          mediaRecorder: null,
+          chunkSequence: 0,
+          pendingChunkUploadPromises: [],
+          recordingStartTime: null,
+          recordingEndTime: null,
+          userId: "demo-user-2", // Fixed user ID for this participant
+          recordingId: null, // Will be set when recording starts
+        },
+        // Add more participants here if you added more HTML sections
+        /*
+        {
+          id: 3,
+          videoElement: document.getElementById("liveVideo3"),
+          startCameraButton: document.getElementById("startCamera3Button"),
+          startRecordingButton: document.getElementById("startRecording3Button"),
+          stopRecordingButton: document.getElementById("stopRecording3Button"),
+          mediaStream: null,
+          mediaRecorder: null,
+          chunkSequence: 0,
+          pendingChunkUploadPromises: [],
+          recordingStartTime: null,
+          recordingEndTime: null,
+          userId: "demo-user-3",
+          recordingId: null,
+        },
+        */
+      ];
+
+      const previewVideoElement = document.getElementById("previewVideo");
+      const downloadLink = document.getElementById("downloadLink");
+
+      // Global control buttons
+      const startConferenceSessionButton = document.getElementById(
+        "startConferenceSessionButton"
+      );
+      const stopAllRecordingsButton = document.getElementById(
+        "stopAllRecordingsButton"
+      );
+      const fetchAndPlayButton = document.getElementById("fetchAndPlayButton");
+      const triggerConferenceMergeButton = document.getElementById(
+        "triggerConferenceMergeButton"
+      );
+
+      const messagesDiv = document.getElementById("messages");
+      const errorsDiv = document.getElementById("errors");
+      const roomIdDisplay = document.getElementById("room-id-display");
+      const statusList = document.getElementById("status-list"); // NEW: Status list element
+
+      // Global conference state
+      let currentRoomId = null; // Shared Room ID for the conference
+      let conferenceStartTime = null; // Timestamp for when the conference session started
+      let conferenceStatusPollingInterval = null; // NEW: Interval ID for polling
+
+      // --- Helper Functions for UI feedback ---
+      function displayMessage(msg) {
+        messagesDiv.textContent = msg;
+        errorsDiv.textContent = ""; // Clear errors when a message is displayed
+      }
+
+      function displayError(err) {
+        const errorName = err.name || "UnknownError";
+        const errorMessage = err.message || "An unknown error occurred.";
+        errorsDiv.textContent = `Error: ${errorName} - ${errorMessage}`;
+        messagesDiv.textContent = ""; // Clear messages when an error is displayed
+        console.error("Detailed error:", err);
+      }
+
+      // Updates button states based on conference and participant states
+      function updateButtonStates() {
+        const conferenceActive = currentRoomId !== null;
+        const anyRecordingActive = participants.some(
+          (p) => p.mediaRecorder && p.mediaRecorder.state === "recording"
+        );
+
+        startConferenceSessionButton.disabled = conferenceActive;
+        stopAllRecordingsButton.disabled = !anyRecordingActive;
+        fetchAndPlayButton.disabled = anyRecordingActive;
+        // triggerConferenceMergeButton.disabled is now managed by polling
+
+        participants.forEach((p) => {
+          const cameraOn = p.mediaStream !== null;
+          const recordingActive =
+            p.mediaRecorder && p.mediaRecorder.state === "recording";
+
+          p.startCameraButton.disabled = cameraOn;
+          p.startRecordingButton.disabled =
+            !cameraOn || recordingActive || !conferenceActive;
+          p.stopRecordingButton.disabled = !recordingActive;
+        });
+      }
+
+      function generateUUID() {
+        return crypto.randomUUID();
+      }
+
+      const openMediaDevices = async (constraints) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        } catch (error) {
+          throw error;
+        }
+      };
+
+      // --- FETCH REQUEST TO UPLOAD CHUNK ---
+      async function uploadVideoChunk(
+        chunkBlob,
+        chunkIndex,
+        roomId,
+        recordingId,
+        userId
+      ) {
+        const formData = new FormData();
+
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("chunkIndex", chunkIndex);
+
+        formData.append(
+          "videoChunk",
+          chunkBlob,
+          `chunk-${recordingId}-${chunkIndex}.webm`
+        );
+
+        formData.append("userId", userId);
+        formData.append("timestamp", Date.now());
+
+        try {
+          const response = await fetch("http://localhost:3000/upload-chunk", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+
+          const result = await response.json();
+          displayMessage(
+            `Chunk ${chunkIndex} uploaded (${result.message || "success"}).`
+          );
+          return true;
+        } catch (error) {
+          console.error(
+            `Error uploading chunk ${chunkIndex} for recording ${recordingId}:`,
+            error
+          );
+          displayError(
+            `Failed to upload chunk ${chunkIndex}. Check console for details. `
+          );
+          return false;
+        }
+      }
+
+      // --- Signal End of Recording to Backend (now includes timestamps) ---
+      async function sendEndOfRecordingSignal(
+        roomId,
+        recordingId,
+        userId,
+        startTime,
+        endTime
+      ) {
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        formData.append("recordingId", recordingId);
+        formData.append("userId", userId);
+        formData.append("isLastChunk", "true");
+        formData.append("recordingStartTime", startTime);
+        formData.append("recordingEndTime", endTime);
+
+        try {
+          const response = await fetch("http://localhost:3000/upload-chunk", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+          console.log(
+            `End of recording signal sent successfully for ${recordingId}.`
+          );
+          displayMessage(
+            `Recording ended for ${recordingId}. Signaled backend for processing.`
+          );
+        } catch (error) {
+          console.error(
+            `Error sending end of recording signal for ${recordingId}:`,
+            error
+          );
+          displayError(
+            `Failed to send end of recording signal for ${recordingId}. Video may not finalize correctly.`
+          );
+        }
+      }
+
+      // --- FETCH REQUEST TO GET AND PLAY MERGED VIDEO FROM BACKEND ---
+      fetchAndPlayButton.addEventListener("click", async () => {
+        displayMessage("Fetching last processed video from backend...");
+        try {
+          const response = await fetch("http://localhost:3000/send-blob", {
+            // Corrected URL
+            method: "GET",
+          });
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+
+          const videoBlob = await response.blob();
+          console.log("Received video Blob from backend:", videoBlob);
+
+          const videoUrl = URL.createObjectURL(videoBlob);
+
+          previewVideoElement.src = videoUrl;
+          previewVideoElement.load();
+          previewVideoElement.play();
+
+          downloadLink.href = videoUrl;
+          downloadLink.download = `recorded-video-${Date.now()}.webm`;
+          downloadLink.style.display = "block";
+
+          displayMessage(
+            "Video fetched and loaded for preview. You can also download it."
+          );
+        } catch (error) {
+          console.error("Error fetching/playing video from backend:", error);
+          displayError(
+            `Failed to fetch or play video from backend: ${error.message}`
+          );
+          previewVideoElement.src = "";
+          downloadLink.style.display = "none";
+        }
+      });
+
+      // --- GLOBAL CONFERENCE SESSION CONTROL ---
+      startConferenceSessionButton.addEventListener("click", () => {
+        if (currentRoomId) {
+          displayError("Conference session already active.");
+          return;
+        }
+        currentRoomId = generateUUID();
+        conferenceStartTime = Date.now();
+        roomIdDisplay.textContent = `Current Room ID: ${currentRoomId}`;
+        console.log("New Conference Room ID:", currentRoomId);
+        displayMessage(
+          "Conference session started. Participants can now join and record."
+        );
+        updateButtonStates();
+        // NEW: Start polling for conference status
+        conferenceStatusPollingInterval = setInterval(
+          pollConferenceStatus,
+          3000
+        ); // Poll every 3 seconds
+      });
+
+      // --- INDIVIDUAL PARTICIPANT CONTROLS ---
+      participants.forEach((p, index) => {
+        // Start Camera for individual participant
+        p.startCameraButton.addEventListener("click", async () => {
+          displayMessage(`Participant ${p.id}: Requesting camera access...`);
+          try {
+            p.mediaStream = await openMediaDevices({
+              video: true,
+              audio: true,
+            });
+            p.videoElement.srcObject = p.mediaStream;
+            displayMessage(
+              `Participant ${p.id}: Camera and microphone access granted.`
+            );
+            updateButtonStates();
+          } catch (error) {
+            displayError(
+              `Participant ${p.id}: Error accessing media devices: ${error.message}`
+            );
+            console.error(`Participant ${p.id}: Detailed error:`, error);
+            updateButtonStates();
+          }
+        });
+
+        // Start Recording for individual participant
+        p.startRecordingButton.addEventListener("click", () => {
+          if (!currentRoomId) {
+            displayError("Please start a conference session first.");
+            return;
+          }
+          if (!p.mediaStream) {
+            displayError(
+              `Participant ${p.id}: Camera not started. Please start camera first.`
+            );
+            return;
+          }
+          if (p.mediaRecorder && p.mediaRecorder.state === "recording") {
+            displayError(`Participant ${p.id}: Already recording.`);
+            return;
+          }
+
+          const participantRecordingId = generateUUID(); // Unique recording ID for this specific participant's track
+          p.chunkSequence = 0;
+          p.pendingChunkUploadPromises = []; // Reset for new recording
+          p.recordingId = participantRecordingId; // Store recording ID on participant object
+
+          const options = { mimeType: "video/webm" };
+
+          if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+            displayError(
+              `MIME type ${options.mimeType} is not supported by your browser for Participant ${p.id}.`
+            );
+            console.error(
+              `MIME type ${options.mimeType} is not supported for Participant ${p.id}.`
+            );
+            return;
+          }
+
+          p.mediaRecorder = new MediaRecorder(p.mediaStream, options);
+
+          p.mediaRecorder.onstart = () => {
+            p.recordingStartTime = Date.now();
+            console.log(
+              `Participant ${p.id} recorder started at ${p.recordingStartTime}`
+            );
+            updateButtonStates(); // Update buttons once recording truly starts
+          };
+
+          p.mediaRecorder.ondataavailable = async (event) => {
+            if (event.data.size > 0) {
+              p.pendingChunkUploadPromises.push(
+                uploadVideoChunk(
+                  event.data,
+                  p.chunkSequence,
+                  currentRoomId, // Shared Room ID
+                  p.recordingId, // Unique Recording ID for this participant
+                  p.userId // Fixed User ID for this participant
+                )
+              );
+              p.chunkSequence++;
+            }
+          };
+
+          p.mediaRecorder.onstop = async () => {
+            console.log(
+              `MediaRecorder stopped for Participant ${p.id} (${p.recordingId}).`
+            );
+            p.recordingEndTime = Date.now();
+            displayMessage(
+              `Participant ${p.id} recording stopped. Finalizing chunks...`
+            );
+
+            try {
+              await Promise.all(p.pendingChunkUploadPromises); // Wait for this participant's chunks to upload
+              console.log(
+                `All chunks uploaded for Participant ${p.id} (${p.recordingId}).`
+              );
+
+              await sendEndOfRecordingSignal(
+                currentRoomId,
+                p.recordingId,
+                p.userId,
+                p.recordingStartTime,
+                p.recordingEndTime
+              );
+            } catch (error) {
+              console.error(
+                `Error during final chunk processing for Participant ${p.id} (${p.recordingId}):`,
+                error
+              );
+              displayError(
+                `Failed to ensure all chunks uploaded or send final signal for Participant ${p.id}.`
+              );
+            } finally {
+              p.pendingChunkUploadPromises = [];
+              updateButtonStates(); // Update buttons after this recorder's onstop is processed
+              // The global check and merge button enabling is now handled by polling
+            }
+          };
+
+          p.mediaRecorder.start(10000); // 10-second timeslice
+          displayMessage(
+            `Participant ${p.id} recording started! Chunks for Room ${currentRoomId}, Track ${p.recordingId} are being sent every 10 seconds.`
+          );
+          updateButtonStates(); // Update buttons immediately after calling start
+        });
+
+        // Stop Recording for individual participant
+        p.stopRecordingButton.addEventListener("click", () => {
+          if (p.mediaRecorder && p.mediaRecorder.state === "recording") {
+            displayMessage(`Participant ${p.id}: Stopping recording...`);
+            p.mediaRecorder.stop();
+          } else {
+            displayError(`Participant ${p.id}: No active recording to stop.`);
+          }
+        });
+      });
+
+      // --- GLOBAL STOP ALL RECORDINGS CONTROL ---
+      stopAllRecordingsButton.addEventListener("click", () => {
+        const activeRecorders = participants.filter(
+          (p) => p.mediaRecorder && p.mediaRecorder.state === "recording"
+        );
+        if (activeRecorders.length === 0) {
+          displayError("No active recordings to stop.");
+          return;
+        }
+
+        displayMessage("Stopping all active recordings...");
+        activeRecorders.forEach((p) => {
+          p.mediaRecorder.stop();
+        });
+      });
+
+      // --- NEW: Polling function for conference status ---
+      async function pollConferenceStatus() {
+        if (!currentRoomId) {
+          statusList.innerHTML = "";
+          triggerConferenceMergeButton.disabled = true;
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `http://localhost:3000/conference-status/${currentRoomId}`
+          );
+          if (!response.ok) {
+            // If it's a 404, it means the room hasn't been initialized with recordings yet.
+            // This is expected initially. Don't treat it as a critical error that stops polling.
+            if (response.status === 404) {
+              statusList.innerHTML =
+                "<li>Waiting for first participant recording...</li>";
+              triggerConferenceMergeButton.disabled = true;
+              return; // Exit, but keep polling
+            }
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          const status = await response.json();
+
+          statusList.innerHTML = ""; // Clear previous status
+          if (status.totalTracks > 0) {
+            const header = document.createElement("li");
+            header.innerHTML = `<strong>Total Tracks: ${status.totalTracks}, Ready: ${status.readyTracks}</strong>`;
+            statusList.appendChild(header);
+
+            status.tracks.forEach((track) => {
+              const listItem = document.createElement("li");
+              listItem.textContent = `User ${
+                track.userId
+              } (Track: ${track.recordingId.substring(0, 8)}...): `;
+              const statusSpan = document.createElement("span");
+              statusSpan.textContent = track.isReady
+                ? "Ready"
+                : "Processing...";
+              statusSpan.className = track.isReady
+                ? "status-ready"
+                : "status-pending";
+              listItem.appendChild(statusSpan);
+              statusList.appendChild(listItem);
+            });
+          } else {
+            const noTracks = document.createElement("li");
+            noTracks.textContent = "No participant tracks initiated yet.";
+            statusList.appendChild(noTracks);
+          }
+
+          // Enable/Disable merge button based on server's readyForMerge status
+          triggerConferenceMergeButton.disabled = !status.readyForMerge;
+
+          if (status.readyForMerge && conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval); // Stop polling once ready
+            conferenceStatusPollingInterval = null;
+            displayMessage(
+              "All recordings processed individually. Ready to merge conference!"
+            );
+          }
+        } catch (error) {
+          console.error("Error polling conference status:", error);
+          displayError(`Failed to fetch conference status: ${error.message}`);
+          triggerConferenceMergeButton.disabled = true; // Disable on error
+          // Do NOT clear interval here for 404s, only for other types of errors
+          if (error.message.includes("404")) {
+            // It's a 404, which is expected before any recordings start.
+            // Just keep polling.
+          } else if (conferenceStatusPollingInterval) {
+            clearInterval(conferenceStatusPollingInterval);
+            conferenceStatusPollingInterval = null;
+          }
+        }
+      }
+
+      // --- Trigger Conference Merge Button ---
+      triggerConferenceMergeButton.addEventListener("click", async () => {
+        if (!currentRoomId) {
+          displayError(
+            "No active room ID to merge. Please record a conference first."
+          );
+          return;
+        }
+
+        // Double-check readiness before triggering
+        try {
+          const response = await fetch(
+            `http://localhost:3000/conference-status/${currentRoomId}`
+          );
+          const status = await response.json();
+          if (!status.readyForMerge) {
+            displayError(
+              "Not all individual tracks are processed yet. Please wait."
+            );
+            return;
+          }
+        } catch (error) {
+          displayError(
+            "Could not verify conference readiness. Please try again."
+          );
+          return;
+        }
+
+        displayMessage(
+          `Triggering conference merge for Room ID: ${currentRoomId}... This might take a while!`
+        );
+        triggerConferenceMergeButton.disabled = true; // Disable while merging
+
+        try {
+          const response = await fetch(
+            "http://localhost:3000/trigger-conference-merge",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                roomId: currentRoomId,
+                conferenceStartTime: conferenceStartTime,
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorDetails = await response.text();
+            throw new Error(
+              `HTTP error! Status: ${response.status}, Details: ${errorDetails}`
+            );
+          }
+
+          const result = await response.json();
+          console.log("Conference merge request sent:", result);
+          displayMessage(
+            `Conference merge job queued for Room ID: ${currentRoomId}. Worker will process it.`
+          );
+        } catch (error) {
+          console.error("Error triggering conference merge:", error);
+          displayError(`Failed to trigger conference merge: ${error.message}`);
+          triggerConferenceMergeButton.disabled = false; // Re-enable on failure
+        }
+      });
+
+      // Initial button states when the page loads
+      updateButtonStates();
+    </script>
+  </body>
+</html>

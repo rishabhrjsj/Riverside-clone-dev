@@ -1,0 +1,78 @@
+.footer {
+  background-color: #0b0b0b;
+  color: #fff;
+  padding: 2rem 3rem 1rem;
+  font-family: "Segoe UI", sans-serif;
+  margin-top: 5rem;
+  border-radius: 8px;
+  position: relative;
+}
+
+.footer-top-border {
+  height: 5px;
+  background: linear-gradient(to right, #ff3b3f, #b30000);
+  margin-bottom: 2rem;
+  border-radius: 10px;
+}
+
+/* Content layout */
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.footer-section {
+  flex: 1;
+  min-width: 200px;
+}
+
+.logo-section .logo-text {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #ff3b3f;
+  margin-bottom: 0.5rem;
+}
+
+.links-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.links-section li {
+  margin-bottom: 0.5rem;
+}
+
+.links-section a {
+  color: #fff;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.links-section a:hover {
+  color: #ff3b3f;
+}
+
+.social-icons {
+  display: flex;
+  gap: 1rem;
+  font-size: 1.3rem;
+}
+
+.social-icons a {
+  color: #ccc;
+  transition: color 0.3s;
+}
+
+.social-icons a:hover {
+  color: #ff3b3f;
+}
+
+/* Bottom text */
+.footer-bottom {
+  text-align: center;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: #aaa;
+}
