@@ -73,6 +73,7 @@
 .navbar-right {
   display: flex;
   gap: 1rem;
+  align-items: center;
 }
 
 /* === Buttons Styling === */
@@ -93,13 +94,30 @@
   box-shadow: 0 0 10px rgba(255, 59, 63, 0.4);
 }
 
-/* === Logout Button Style === */
+/* === Username Display === */
+.navbar-user {
+  font-size: 1rem;
+  color: #ffffff;
+  font-weight: 500;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+/* === Logout Button Adjustments === */
 .logout {
-  border-color: #999;
+  padding: 0 16px;
+  height: 40px; /* 👈 Adjusted to align with text nicely */
+  border: 2px solid #bbb;
   color: #bbb;
+  font-weight: 600;
+  background-color: transparent;
+  transition: all 0.3s ease;
 }
 
 .logout:hover {
-  background-color: #ddd;
+  background-color: #ffffff;
   color: #111;
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
 }

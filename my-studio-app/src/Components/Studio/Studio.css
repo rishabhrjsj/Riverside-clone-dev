@@ -1,0 +1,243 @@
+/* Font Imports */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+
+/* Global Styles */
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background-color: #0a0a0a; /* Deep Rich Black */
+  color: #ffffff; /* Pure White */
+  line-height: 1.6;
+}
+
+.studio-container {
+  padding: 2.5rem 1.5rem; /* Increased padding for more breathing room */
+  background-color: #0a0a0a; /* Deep Rich Black */
+  min-height: 100vh;
+  color: #ffffff;
+  font-family: "Inter", sans-serif;
+}
+
+/* Page Title */
+.studio-title {
+  text-align: center;
+  font-size: 2.8rem; /* Larger title */
+  color: #ffffff; /* White for main title */
+  margin-bottom: 3rem; /* More space below the title */
+  border-bottom: 3px solid #ff3b3b; /* Red underline */
+  display: inline-block;
+  padding-bottom: 0.5rem;
+  letter-spacing: 1px; /* Slight letter spacing for title */
+  text-transform: uppercase; /* Uppercase for a bolder look */
+  width: fit-content; /* Adjust width to content */
+  margin: 0 auto 3rem auto; /* Center the title */
+  font-family: "Poppins", sans-serif;
+  font-weight: 800;
+}
+
+/* Room Section - Container for participant and conference videos */
+.studio-room-section {
+  display: flex;
+  flex-direction: column; /* Stack sections by default */
+  background-color: #1a1a1a; /* Dark Charcoal Grey */
+  border: 1px solid #1a1a1a; /* Subtle border */
+  border-radius: 12px; /* More rounded corners */
+  margin-bottom: 2.5rem; /* Increased margin between room sections */
+  padding: 1.5rem;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4); /* Softer, darker shadow */
+  gap: 2rem; /* Gap between left and right sections */
+}
+
+/* Room Title (e.g., Room ID: [ID]) */
+.studio-room-title {
+  font-size: 1.8rem; /* Larger room title */
+  font-weight: 700; /* Bolder font */
+  color: #8a2be2; /* Violet for room titles */
+  margin-bottom: 1.5rem;
+  text-align: center;
+  background-color: rgba(138, 43, 226, 0.1); /* Light violet background */
+  padding: 0.8rem;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  width: fit-content; /* Adjust width to content */
+  margin: 0 auto 1.5rem auto; /* Center the title */
+  font-family: "Poppins", sans-serif;
+}
+
+/* Layout for Participant and Conference sections */
+.studio-content-wrapper {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap; /* Allows wrapping on smaller screens */
+}
+
+.studio-left,
+.studio-right {
+  flex: 1;
+  min-width: 320px; /* Minimum width for responsiveness */
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Gap between video cards */
+  padding: 1rem;
+  background-color: #1a1a1a; /* Consistent background for sub-sections */
+  border-radius: 10px;
+  border: 1px solid #333333; /* Slightly visible border for inner sections */
+}
+
+/* Centering the conference video section */
+.studio-right {
+  align-items: center;
+  justify-content: flex-start; /* Align content to the start */
+}
+
+/* Subtitles (e.g., Participant Videos, Conference Video) */
+.studio-subtitle {
+  font-size: 1.4rem;
+  color: #ff3b3b; /* Red for subtitles */
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 2px solid #ff3b3b;
+  padding-bottom: 0.6rem;
+  margin-bottom: 1.5rem;
+  text-transform: capitalize;
+  display: inline-block; /* Shrinks width to text content */
+  width: fit-content;
+  margin: 0 auto 1.5rem auto; /* Center the subtitle */
+  font-family: "Poppins", sans-serif;
+}
+
+/* Individual Video Card */
+.studio-card {
+  background-color: #1a1a1a; /* Dark Charcoal Grey for cards */
+  color: #ffffff; /* White text on card */
+  border-radius: 12px; /* More rounded corners for cards */
+  padding: 1rem;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); /* Stronger, darker shadow */
+  transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; /* Smooth transition for hover */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid #1a1a1a; /* Subtle initial border */
+}
+
+.studio-card:hover {
+  transform: translateY(-5px); /* Lift effect on hover */
+  box-shadow: 0 8px 25px rgba(138, 43, 226, 0.3); /* Violet glow on hover */
+  border-color: #8a2be2; /* Violet border on hover */
+}
+
+/* Video Player */
+.studio-video {
+  width: 100%;
+  height: auto;
+  max-height: 220px; /* Slightly increased max height */
+  border-radius: 8px; /* Rounded video corners */
+  border: 1px solid #333333; /* Subtle border for video */
+}
+
+/* Filename and Date Text */
+.studio-filename {
+  font-size: 1rem; /* Slightly larger filename */
+  font-weight: 700; /* Bolder filename */
+  margin: 0.6rem 0 0.3rem; /* Adjusted margins */
+  color: #ffffff; /* White text for filename */
+  font-family: "Inter", sans-serif;
+}
+
+.studio-date {
+  font-size: 0.85rem; /* Slightly larger date */
+  color: #cccccc; /* Softer color for date */
+  margin-bottom: 0.8rem; /* Space before download button */
+  font-family: "Inter", sans-serif;
+}
+
+/* Download Button */
+.studio-download-btn {
+  background-color: #8a2be2; /* Violet button */
+  color: #ffffff;
+  padding: 0.6rem 1.2rem; /* Larger padding for button */
+  border-radius: 8px; /* More rounded button */
+  font-size: 0.9rem;
+  text-decoration: none;
+  margin-top: 0.5rem;
+  display: inline-block;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  font-weight: 600; /* Semibold button text */
+  border: none;
+  cursor: pointer;
+}
+
+.studio-download-btn:hover {
+  background-color: #7a24cc; /* Darker violet on hover */
+  transform: translateY(-2px); /* Slight lift on hover */
+}
+
+/* No recordings found messages */
+.studio-loading-message,
+.studio-no-recordings,
+.studio-no-recordings-sub {
+  text-align: center;
+  color: #cccccc; /* Lighter grey for informative messages */
+  font-style: italic;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 992px) {
+  .studio-content-wrapper {
+    flex-direction: column; /* Stack participant and conference sections */
+  }
+
+  .studio-left,
+  .studio-right {
+    min-width: unset; /* Remove min-width on smaller screens */
+    width: 100%; /* Take full width */
+  }
+}
+
+@media (max-width: 768px) {
+  .studio-title {
+    font-size: 2.2rem;
+  }
+
+  .studio-room-title {
+    font-size: 1.5rem;
+  }
+
+  .studio-subtitle {
+    font-size: 1.2rem;
+  }
+
+  .studio-container {
+    padding: 1.5rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .studio-title {
+    font-size: 1.8rem;
+    margin-bottom: 2rem;
+  }
+
+  .studio-room-title {
+    font-size: 1.3rem;
+  }
+
+  .studio-room-section {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .studio-card {
+    padding: 0.6rem;
+  }
+
+  .studio-download-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+}

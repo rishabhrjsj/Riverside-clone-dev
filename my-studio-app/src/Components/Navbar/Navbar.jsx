@@ -1,10 +1,37 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import "./Navbar.css";
+import { useUser } from "../../Context/UserContext";
+import { useNavigate } from "react-router-dom";
 
 export default function Navbar() {
-  // Dummy authentication variable
-  const isAuthenticated = false; // Set true to simulate logged-in state
+  const { user, setUser } = useUser();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/users/logout", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // ✅ Important for cookie handling
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setUser(null);
+        toast.success(data.message || "Logged out successfully");
+        navigate("/");
+      } else {
+        toast.error(data.message || "Logout failed");
+      }
+    } catch (error) {
+      toast.error("Network error");
+      console.error("Logout Error:", error);
+    }
+  };
 
   return (
     <nav className="navbar">
@@ -13,13 +40,17 @@ export default function Navbar() {
           <Link to="/">🎙 LOGO</Link>
         </div>
         <div className="nav-links">
-          <Link to="/start">Start Podcast</Link>
-          <Link to="/studio">Your Studio</Link>
+          {user && (
+            <>
+              <Link to="/podcast">Start Podcast</Link>
+              <Link to="/studio">Your Studio</Link>
+            </>
+          )}
         </div>
       </div>
 
       <div className="navbar-right">
-        {!isAuthenticated ? (
+        {!user ? (
           <>
             <Link to="/signup">
               <button className="nav-btn">Signup</button>
@@ -29,9 +60,12 @@ export default function Navbar() {
             </Link>
           </>
         ) : (
-          <Link to="/logout">
-            <button className="nav-btn logout">Logout</button>
-          </Link>
+          <>
+            <p className="navbar-user">{user.name}</p>
+            <button className="nav-btn logout" onClick={handleLogout}>
+              Logout
+            </button>
+          </>
         )}
       </div>
     </nav>

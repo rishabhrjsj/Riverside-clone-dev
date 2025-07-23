@@ -1,0 +1,134 @@
+/* Font Imports */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&family=Inter:wght@400;500;600;700&display=swap");
+
+/* Global Body Styles */
+body {
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  background-color: #0a0a0a;
+  color: #ffffff;
+  line-height: 1.6;
+}
+
+/* Page Wrapper */
+.create-user-page-wrapper {
+  min-height: 90vh;
+  background-color: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  box-sizing: border-box;
+}
+
+/* Form Container */
+.create-user-container {
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2.5rem;
+  background-color: #1a1a1a;
+  border: 1px solid #333333;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  font-family: "Inter", sans-serif;
+  color: #ffffff;
+}
+
+/* Form Heading */
+.create-user-heading {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 2rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #ff3b3b;
+  display: inline-block;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: "Poppins", sans-serif;
+}
+
+/* Form Layout */
+.create-user-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Input Group (Label + Input) */
+.input-group {
+  display: flex;
+  flex-direction: column; /* FIXED: label above input */
+}
+
+.input-group label {
+  margin-bottom: 0.2rem;
+  font-weight: 600;
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.input-group input {
+  padding: 0.8rem 1rem;
+  font-size: 1rem;
+  background-color: #0a0a0a;
+  color: #ffffff;
+  border: 1px solid #333333;
+  border-radius: 8px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  outline: none;
+}
+
+.input-group input:focus {
+  border-color: #8a2be2;
+  box-shadow: 0 0 0 3px rgba(138, 43, 226, 0.3);
+}
+
+/* Submit Button */
+.submit-button {
+  padding: 1rem 1.5rem;
+  font-size: 1.1rem;
+  background-color: #8a2be2;
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-top: 1rem;
+}
+
+.submit-button:hover {
+  background-color: #7a24cc;
+  transform: translateY(-2px);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 600px) {
+  .create-user-container {
+    padding: 1.5rem;
+  }
+
+  .create-user-heading {
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .input-group label {
+    font-size: 0.9rem;
+  }
+
+  .input-group input {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .submit-button {
+    padding: 0.8rem 1.2rem;
+    font-size: 1rem;
+  }
+}
