@@ -12,6 +12,7 @@ import {
   MonitorPlay,
 } from "lucide-react";
 import "./Home.css"; // Import the pure CSS file
+import { Link } from "react-router-dom";
 
 // HomePage Component
 const Home = () => {
@@ -38,10 +39,10 @@ const Home = () => {
               tracks for every guest. The ultimate remote studio, simplified.
             </p>
             <div className="hero-cta-buttons">
-              <button className="btn-primary">
+              <Link to="/podcast" className="btn-primary">
                 Start Recording Free
                 <Play className="icon-after-text" />
-              </button>
+              </Link>
               {/* <button className="btn-secondary">See Features</button> */}
             </div>
           </div>
@@ -257,7 +258,9 @@ const Home = () => {
             Join the new standard of remote recording. No credit card required
             to start your journey.
           </p>
-          <button className="btn-final-cta">Claim Your Free Studio</button>
+          <Link to="/studio" className="btn-final-cta">
+            Claim Your Free Studio
+          </Link>
         </div>
       </section>
     </div>

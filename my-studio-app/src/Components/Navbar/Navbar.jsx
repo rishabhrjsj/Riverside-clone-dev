@@ -37,7 +37,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-left">
         <div className="logo">
-          <Link to="/">🎙 LOGO</Link>
+          <Link to="/">🎙 Riverside</Link>
         </div>
         <div className="nav-links">
           {user && (

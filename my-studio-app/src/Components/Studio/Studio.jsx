@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState } from "react";
 import { useUser } from "../../Context/UserContext";
-import "./Studio.css"; // Import the pure CSS file
+import "./Studio.css";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 
@@ -10,6 +10,7 @@ const Studio = () => {
   const [webmFilesByRoom, setWebmFilesByRoom] = useState({});
   const [conferenceVideosByRoom, setConferenceVideosByRoom] = useState({});
   const [isLoading, setIsLoading] = useState(true);
+  const [hasAnyRecording, setHasAnyRecording] = useState(false);
 
   let navigate = useNavigate();
 
@@ -20,16 +21,16 @@ const Studio = () => {
       try {
         const res = await fetch(
           `http://localhost:3000/api/users/${user.id}/room-ids`,
-          {
-            credentials: "include",
-          }
+          { credentials: "include" }
         );
         const data = await res.json();
+
         if (res.status === 401) {
           toast.error("You must be logged in to view this page.");
           navigate("/login");
           return;
         }
+
         setRoomIds(data.roomIds);
       } catch (err) {
         console.error("Error fetching room IDs:", err);
@@ -49,37 +50,35 @@ const Studio = () => {
 
       for (const roomId of roomIds) {
         try {
-          // Participant videos
           const participantRes = await fetch(
             `http://localhost:3000/api/studio/finalvideos/${roomId}`,
-            {
-              credentials: "include",
-            }
+            { credentials: "include" }
           );
+
           if (participantRes.status === 401) {
             toast.error("Session expired. Please log in again.");
             navigate("/login");
             setIsLoading(false);
             return;
           }
+
           if (participantRes.ok) {
             const data = await participantRes.json();
             participantFiles[roomId] = data;
           }
 
-          // Conference videos
           const conferenceRes = await fetch(
             `http://localhost:3000/api/studio/conferencevideos/${roomId}`,
-            {
-              credentials: "include",
-            }
+            { credentials: "include" }
           );
+
           if (conferenceRes.status === 401) {
             toast.error("Session expired. Please log in again.");
             navigate("/login");
             setIsLoading(false);
             return;
           }
+
           if (conferenceRes.ok) {
             const data = await conferenceRes.json();
             conferenceFiles[roomId] = data;
@@ -92,6 +91,19 @@ const Studio = () => {
 
       setWebmFilesByRoom(participantFiles);
       setConferenceVideosByRoom(conferenceFiles);
+
+      let foundRecording = false;
+      for (const roomId of roomIds) {
+        if (
+          (participantFiles[roomId] && participantFiles[roomId].length > 0) ||
+          (conferenceFiles[roomId] && conferenceFiles[roomId].length > 0)
+        ) {
+          foundRecording = true;
+          break;
+        }
+      }
+
+      setHasAnyRecording(foundRecording);
       setIsLoading(false);
     };
 
@@ -118,70 +130,89 @@ const Studio = () => {
         </p>
       )}
 
-      {!isLoading &&
-        roomIds.map((roomId) => (
-          <div key={roomId} className="studio-room-section">
-            <h2 className="studio-room-title">Room ID: {roomId}</h2>
+      {!isLoading && roomIds.length > 0 && !hasAnyRecording && (
+        <p className="studio-no-recordings">No recordings yet.</p>
+      )}
 
-            <div className="studio-content-wrapper">
-              {/* Participants Section */}
-              <div className="studio-left">
-                <h3 className="studio-subtitle">Participant Videos</h3>
-                <>
-                  {(webmFilesByRoom[roomId] || []).length === 0 && (
+      {!isLoading &&
+        roomIds.map((roomId) => {
+          const participantVideos = webmFilesByRoom[roomId] || [];
+          const conferenceVideos = conferenceVideosByRoom[roomId] || [];
+
+          if (participantVideos.length === 0 && conferenceVideos.length === 0) {
+            return null; // Skip this room entirely
+          }
+
+          return (
+            <div key={roomId} className="studio-room-section">
+              <h2 className="studio-room-title">Room ID: {roomId}</h2>
+
+              <div className="studio-content-wrapper">
+                {/* Participant Videos */}
+                <div className="studio-left">
+                  <h3 className="studio-subtitle">Participant Videos</h3>
+                  {participantVideos.length === 0 ? (
                     <p className="studio-no-recordings-sub">
                       No participant recordings found for this room.
                     </p>
+                  ) : (
+                    participantVideos.map((file, idx) => (
+                      <div key={idx} className="studio-card">
+                        <video
+                          src={file.url}
+                          controls
+                          className="studio-video"
+                        />
+                        <p className="studio-filename">{file.fileName}</p>
+                        <p className="studio-date">
+                          Recorded on:{" "}
+                          {new Date(file.lastModified).toLocaleString()}
+                        </p>
+                        <a
+                          href={file.url}
+                          download
+                          className="studio-download-btn">
+                          Download Video
+                        </a>
+                      </div>
+                    ))
                   )}
-                  {(webmFilesByRoom[roomId] || []).map((file, idx) => (
-                    <div key={idx} className="studio-card">
-                      <video src={file.url} controls className="studio-video" />
-                      <p className="studio-filename">{file.fileName}</p>
-                      <p className="studio-date">
-                        Recorded on:{" "}
-                        {new Date(file.lastModified).toLocaleString()}
-                      </p>
-                      <a
-                        href={file.url}
-                        download
-                        className="studio-download-btn">
-                        Download Video
-                      </a>
-                    </div>
-                  ))}
-                </>
-              </div>
+                </div>
 
-              {/* Conference Section */}
-              <div className="studio-right">
-                <h3 className="studio-subtitle">Combined Conference Video</h3>
-                <>
-                  {(conferenceVideosByRoom[roomId] || []).length === 0 && (
+                {/* Conference Videos */}
+                <div className="studio-right">
+                  <h3 className="studio-subtitle">Combined Conference Video</h3>
+                  {conferenceVideos.length === 0 ? (
                     <p className="studio-no-recordings-sub">
                       No combined conference video found for this room.
                     </p>
+                  ) : (
+                    conferenceVideos.map((file, idx) => (
+                      <div key={idx} className="studio-card">
+                        <video
+                          src={file.url}
+                          controls
+                          className="studio-video"
+                        />
+                        <p className="studio-filename">{file.fileName}</p>
+                        <p className="studio-date">
+                          Recorded on:{" "}
+                          {new Date(file.lastModified).toLocaleString()}
+                        </p>
+                        <a
+                          href={file.url}
+                          download
+                          className="studio-download-btn">
+                          Download Video
+                        </a>
+                      </div>
+                    ))
                   )}
-                  {(conferenceVideosByRoom[roomId] || []).map((file, idx) => (
-                    <div key={idx} className="studio-card">
-                      <video src={file.url} controls className="studio-video" />
-                      <p className="studio-filename">{file.fileName}</p>
-                      <p className="studio-date">
-                        Recorded on:{" "}
-                        {new Date(file.lastModified).toLocaleString()}
-                      </p>
-                      <a
-                        href={file.url}
-                        download
-                        className="studio-download-btn">
-                        Download Video
-                      </a>
-                    </div>
-                  ))}
-                </>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
     </div>
   );
 };

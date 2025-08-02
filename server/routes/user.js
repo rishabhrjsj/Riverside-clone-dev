@@ -142,7 +142,7 @@ router.get("/profile", (req, res) => {
 router.post("/setroom/:userId", authenticateUser, async (req, res) => {
   const { roomId } = req.body;
   const { userId } = req.params;
-
+  console.log("Setting roomId for user:", userId, "with roomId:", roomId);
   try {
     if (roomId) {
       const updatedUser = await User.findByIdAndUpdate(

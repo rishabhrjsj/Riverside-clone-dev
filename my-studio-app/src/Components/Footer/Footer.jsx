@@ -9,7 +9,7 @@ export default function Footer() {
 
       <div className="footer-content">
         <div className="footer-section logo-section">
-          <h2 className="logo-text">🎙 LOGO</h2>
+          <h2 className="logo-text">🎙 Riverside</h2>
           <p>Your voice. Your studio. Your platform.</p>
         </div>
 
